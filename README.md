@@ -24,7 +24,7 @@ See `requirements.txt`. Minimum: **Python 3.9+ · pymupdf · LM Studio · one vi
 
 ## Install
 ```bash
-git clone https://github.com/USER/doc-handler.git
+git clone https://github.com/Naivedya-sahu/doc-handler.git
 cd doc-handler
 pip install -r requirements.txt          # or: pip install .[office]
 ```

@@ -24,8 +24,8 @@ office = ["python-docx>=1.1", "python-pptx>=0.6"]
 tui = ["rich>=13.0"]
 
 [project.urls]
-Homepage = "https://github.com/USER/doc-handler"
-Issues = "https://github.com/USER/doc-handler/issues"
+Homepage = "https://github.com/Naivedya-sahu/doc-handler"
+Issues = "https://github.com/Naivedya-sahu/doc-handler/issues"
 
 [project.scripts]
 doc-handler = "doc_handler:main"
