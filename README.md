@@ -49,13 +49,28 @@ python doc_handler.py "D:\AcademicsCOPY" --move "D:\Archive\Academics" --apply
 `dupeGuru hashed-dedup` → **Doc-handler tag** → **Doc-handler move** → handle GATE/PROJ/RES folders apart.
 Run dedup FIRST so the LLM never reads duplicate copies.
 
+## TUI
+```bash
+pip install rich
+python tui.py        # menu: tag (dry/apply) · move · live progress + per-subject bars
+```
+
+## Frontier fallback (optional)
+Local model handles everything; for stubborn `99UNS` files you can escalate to a frontier model:
+- `--frontier claude` → shells out to **Claude Code CLI** (`claude -p`), using your Claude subscription (text-only).
+- `--frontier openai` → OpenAI API (set `OPENAI_API_KEY`). `--backend openai` runs the whole pass on it.
+- *Note:* a ChatGPT Plus/Go web subscription is **not** an API — programmatic OpenAI use needs an API key.
+
 ## Files
 | File | What |
 |---|---|
-| `doc_handler.py` | the tagger + mover |
-| `system_prompt.md` | the LLM vocabulary + rules (edit to tune) |
+| `doc_handler.py` | the tagger + mover (CLI) |
+| `tui.py` | animated Rich TUI front-end |
+| `TAGS.md` | **single source of truth** for all tag lists (script + model read this) |
+| `system_prompt.md` | rules/examples template (tags injected from `TAGS.md`) |
 | `requirements.txt` | software needed for independent use |
 | `GUIDE.md` | detailed runbook, tiers, escalation, troubleshooting |
 | `CHANGELOG.md` | version history |
 
-See `GUIDE.md` for the full workflow and how the prompt/escalation work.
+Edit tags in **`TAGS.md`** only — changes flow to both the script and the model.
+See `GUIDE.md` for the full workflow and how the prompt/escalation/backends work.

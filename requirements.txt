@@ -2,18 +2,29 @@
 # =======================================================
 # PYTHON PACKAGES  (pip install -r requirements.txt)
 pymupdf>=1.24        # PDF text extraction + page-to-image render  (REQUIRED)
+rich>=13.0           # animated TUI front-end (tui.py)              (for TUI)
 python-docx>=1.1     # .docx text                                   (optional)
 python-pptx>=0.6     # .pptx text                                   (optional)
-# Standard library only otherwise (urllib, csv, json, base64) — no other pip deps.
+# Standard library otherwise (urllib, csv, json, base64, subprocess) — no other pip deps.
 
 # -------------------------------------------------------
 # EXTERNAL SOFTWARE  (install separately — not via pip)
 # -------------------------------------------------------
-# Python            3.9+                          run the script
+# Python            3.9+                          run the scripts
 # LM Studio         lmstudio.ai                   local OpenAI-compatible LLM server (localhost:1234)
-# Vision LLM model  e.g. Qwen2-VL-7B-Instruct     reads text AND images (handwritten/scanned/books)
-#                   or MiniCPM-V-2.6              (loaded inside LM Studio; ~8 GB VRAM)
-# dupeGuru          dupeguru.voltaicideas.net     content-hash dedup BEFORE tagging
-# WizTree           diskanalyzer.com              tree/CSV export for inventory
+# Vision LLM model  Qwen2-VL-7B-Instruct          reads text AND images; ~8 GB VRAM
+#                   or MiniCPM-V-2.6
+#
+# OPTIONAL FRONTIER (only for hard 99UNS cases, via --frontier):
+#   Claude Code CLI   claude.ai/code              `--frontier claude` shells out to `claude -p`
+#                                                 (uses your Claude subscription; text-only)
+#   OpenAI API key    set OPENAI_API_KEY env      `--frontier openai` or `--backend openai`
+#                                                 (NOTE: ChatGPT Plus/Go web sub is NOT an API —
+#                                                  programmatic use needs an API key / credits)
+#
+# OTHER TOOLS in the wider workflow (not needed by Doc-handler itself):
+#   dupeGuru   — content-hash dedup BEFORE tagging
+#   WizTree    — tree/CSV inventory export
 #
 # Minimum to run Doc-handler alone: Python + pymupdf + LM Studio + one vision model.
+# Add rich for the TUI.

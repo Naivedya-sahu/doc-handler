@@ -2,6 +2,19 @@
 
 All notable changes. Newest on top.
 
+## [0.4.0] — 2026-06-23
+### Added
+- **`TAGS.md` single source of truth** — STREAM/SUBJECT/TYPE/FACET lists live here; both the
+  script (validation) and the injected system prompt read from it. `system_prompt.md` is now a
+  template with `{{STREAMS}}/{{SUBJECTS}}/{{TYPES}}` placeholders filled at runtime.
+- **Frontier fallback** for hard `99UNS` cases: `--frontier claude` (Claude Code CLI — uses the
+  Claude subscription, text-only) or `--frontier openai` (needs `OPENAI_API_KEY`). `--backend openai`
+  can also run the whole pass on a frontier model.
+- **Animated TUI** (`tui.py`, Rich) — menu-driven tag/move with unicode spinners, live progress,
+  and per-subject bar chart.
+### Notes
+- ChatGPT Plus/Go web subscription is NOT API-accessible; programmatic OpenAI use needs an API key.
+
 ## [0.3.0] — 2026-06-23
 ### Added
 - **Page escalation**: when first-pass SUBJECT = `99UNS` on a PDF, re-read up to 5 pages

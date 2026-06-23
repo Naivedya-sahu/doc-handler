@@ -1,46 +1,58 @@
 #!/usr/bin/env python3
 """
-doc_handler — tag academic documents with a local LLM, then move by prefix.
+doc_handler — tag academic documents with a local (or frontier) LLM, then move by prefix.
 
-Tiered classification (handles no-text / handwritten / scanned / book PDFs):
-  1. TEXT      first 2 pages -> text model.
-  2. ESCALATE  if result is 99UNS (e.g. page 1 was a book cover/preface/TOC),
-               re-read up to 5 pages and retry before giving up.
-  3. VISION    no extractable text -> render page 1 to image -> vision model
-               (page 3 retry if still 99UNS).
-  4. FILENAME  last resort -> filename + folder path.
+Tag vocabulary lives in TAGS.md (single source) and is injected into the model prompt.
+Classification tiers: TEXT -> 5-page ESCALATE -> VISION (+page-3) -> FILENAME.
+On a hard 99UNS, an optional FRONTIER model (Claude Code CLI / OpenAI API) gives a verdict.
 
-Output prefix: `[STREAM-SUBJECT] name.pdf`. Vocabulary + system prompt live in
-`system_prompt.md`. Dry-run by default; --apply renames; --move relocates.
-
-  python doc_handler.py "D:\\AcademicsCOPY" --vision --vision-model qwen2-vl-7b   # dry-run
+  python doc_handler.py "D:\\AcademicsCOPY" --vision --vision-model qwen2-vl-7b
   python doc_handler.py "D:\\AcademicsCOPY" --apply --vision --vision-model qwen2-vl-7b
-  python doc_handler.py "D:\\AcademicsCOPY" --move "D:\\Archive\\Academics"        # dry-run move
+  python doc_handler.py "D:\\AcademicsCOPY" --frontier claude         # Claude Code sub for hard cases
   python doc_handler.py "D:\\AcademicsCOPY" --move "D:\\Archive\\Academics" --apply
 
-Deps: see requirements.txt  (pip install -r requirements.txt)
+Backends: --backend local|openai (main) ; --frontier none|claude|openai (99UNS fallback).
+Deps: see requirements.txt.
 """
 from __future__ import annotations
-import os, sys, json, csv, re, base64, argparse, urllib.request
+import os, sys, json, csv, re, base64, argparse, subprocess, urllib.request
 
 HERE=os.path.dirname(os.path.abspath(__file__))
 EXT_TEXT={".pdf",".txt",".md",".docx",".pptx",".ppt",".doc"}
-STREAMS={"CW","GATE","PROJ","RES","REC","REF"}
-TYPES={"notes","pyq","book","slides","assignment","lab","report","datasheet","syllabus","solution","misc"}
-VALID={"00MM","01CA","02SEMI","03PN","04BJT","05MOS","06OPAMP","07ANLG","08DIG",
-       "09SNS","10CTRL","11COMM","12EMAG","13TOOLS","90HUM","NA","99UNS"}
-MIN_TEXT=80
-DEEP_PAGES=5
-DEEP_CAP=4000
+MIN_TEXT=80; DEEP_PAGES=5; DEEP_CAP=4000
+STREAMS=set(); SUBJECTS=set(); TYPES=set()   # filled from TAGS.md
 
-def load_sys(path):
+# ---------- tag loading (single source) ----------
+def load_tags(path):
+    streams={}; subjects={}; types=[]
+    try: txt=open(path,encoding="utf-8").read()
+    except Exception: txt=""
+    def block(header):
+        m=re.search(r"##\s*"+header+r".*?```tags\n(.*?)```",txt,re.S|re.I)
+        return m.group(1).strip().splitlines() if m else []
+    for ln in block("STREAMS"):
+        if ln.strip(): streams[ln.split()[0]]=ln.strip()
+    for ln in block("SUBJECTS"):
+        if ln.strip(): subjects[ln.split()[0]]=ln.strip()
+    m=re.search(r"##\s*TYPES.*?```tags\n(.*?)```",txt,re.S|re.I)
+    if m: types=[x.split()[0] for x in m.group(1).splitlines() if x.strip()]
+    if not streams: streams={"CW":"CW","GATE":"GATE","PROJ":"PROJ","RES":"RES","REC":"REC","REF":"REF"}
+    if not subjects: subjects={"99UNS":"unsure","NA":"na"}
+    if not types: types=["misc"]
+    return streams,subjects,types
+
+def build_system(template_path, streams, subjects, types):
     try:
-        s=open(path,encoding="utf-8").read()
-        m=re.search(r"<SYSTEM>(.*?)</SYSTEM>",s,re.S)
-        if m: return m.group(1).strip()
-    except Exception: pass
-    return "Reply: STREAM SUBJECT TYPE CONF. Subjects:"+",".join(sorted(VALID))
+        s=open(template_path,encoding="utf-8").read()
+        m=re.search(r"<SYSTEM>(.*?)</SYSTEM>",s,re.S); tmpl=m.group(1) if m else s
+    except Exception:
+        tmpl="Reply: STREAM SUBJECT TYPE CONF.\n{{STREAMS}}\n{{SUBJECTS}}\n{{TYPES}}"
+    tmpl=tmpl.replace("{{STREAMS}}","\n".join("  "+v for v in streams.values()))
+    tmpl=tmpl.replace("{{SUBJECTS}}","\n".join("  "+v for v in subjects.values()))
+    tmpl=tmpl.replace("{{TYPES}}"," ".join(types))
+    return tmpl.strip()
 
+# ---------- text / image extraction ----------
 def pdf_text(path,pages=2,cap=2000):
     try:
         import fitz; d=fitz.open(path); t=""
@@ -49,7 +61,6 @@ def pdf_text(path,pages=2,cap=2000):
             if len(t)>cap: break
         d.close(); return t[:cap]
     except Exception: return ""
-
 def doc_text(path,cap=2000):
     e=os.path.splitext(path)[1].lower()
     try:
@@ -63,63 +74,82 @@ def doc_text(path,cap=2000):
                              if getattr(s,'has_text_frame',False))[:cap]
     except Exception: return ""
     return ""
-
 def page_png(path,page=0,dpi=120):
     try:
         import fitz; d=fitz.open(path)
-        if d.page_count<=page: page=0
         if d.page_count==0: return None
+        if d.page_count<=page: page=0
         b=d[page].get_pixmap(dpi=dpi).tobytes("png"); d.close(); return b
     except Exception: return None
 
-def _post(api,payload):
-    req=urllib.request.Request(api,data=json.dumps(payload).encode(),
-                               headers={"Content-Type":"application/json"})
-    r=json.load(urllib.request.urlopen(req,timeout=180))
-    return r["choices"][0]["message"]["content"]
+# ---------- backends ----------
+def _http(url,payload,headers):
+    req=urllib.request.Request(url,data=json.dumps(payload).encode(),headers=headers)
+    return json.load(urllib.request.urlopen(req,timeout=180))
+
+def llm(a,backend,system,user_text,image_png=None):
+    """Return raw model text. backend: local | openai | claude."""
+    if backend in ("local","openai"):
+        if image_png:
+            content=[{"type":"text","text":user_text},
+                     {"type":"image_url","image_url":{"url":"data:image/png;base64,"+base64.b64encode(image_png).decode()}}]
+        else:
+            content=user_text
+        msgs=[{"role":"system","content":system},{"role":"user","content":content}]
+        if backend=="local":
+            model=a.vision_model if image_png else a.model
+            r=_http(a.api,{"model":model,"temperature":0,"max_tokens":16,"messages":msgs},
+                    {"Content-Type":"application/json"})
+        else:
+            key=os.environ.get("OPENAI_API_KEY","")
+            model=a.openai_model
+            r=_http("https://api.openai.com/v1/chat/completions",
+                    {"model":model,"temperature":0,"max_tokens":16,"messages":msgs},
+                    {"Content-Type":"application/json","Authorization":"Bearer "+key})
+        return r["choices"][0]["message"]["content"]
+    if backend=="claude":   # Claude Code CLI — uses the Claude subscription, text only
+        prompt=system+"\n\n"+user_text+"\nReply with ONLY the 4 tokens."
+        try:
+            out=subprocess.run(["claude","-p",prompt],capture_output=True,text=True,timeout=120)
+            return out.stdout
+        except Exception as e: return "99UNS "+str(e)[:20]
+    return ""
 
 def parse(out):
     o=(out or "").upper()
-    stream=next((s for s in sorted(STREAMS,key=len,reverse=True) if re.search(r'\b'+s+r'\b',o)),"CW")
-    subj=next((c for c in sorted(VALID,key=len,reverse=True) if c in o),"99UNS")
-    typ=next((t for t in TYPES if t.upper() in o),"misc")
-    conf="high" if "HIGH" in o else "low"
-    return stream,subj,typ,conf
-
-def cls_text(api,model,sysp,name,rel,snip):
-    usr=f"Filename: {name}\nFolder: {rel}\nText:\n{snip[:DEEP_CAP]}\n\nAnswer (STREAM SUBJECT TYPE CONF):"
-    try: return parse(_post(api,{"model":model,"temperature":0,"max_tokens":16,
-        "messages":[{"role":"system","content":sysp},{"role":"user","content":usr}]}))
-    except Exception: return ("CW","99UNS","misc","low")
-
-def cls_vision(api,model,sysp,name,rel,png,note=""):
-    b64="data:image/png;base64,"+base64.b64encode(png).decode()
-    usr=[{"type":"text","text":f"Filename: {name}\nFolder: {rel}\n{note}This is a page (may be handwritten/scanned). Answer (STREAM SUBJECT TYPE CONF):"},
-         {"type":"image_url","image_url":{"url":b64}}]
-    try: return parse(_post(api,{"model":model,"temperature":0,"max_tokens":16,
-        "messages":[{"role":"system","content":sysp},{"role":"user","content":usr}]}))
-    except Exception: return ("CW","99UNS","misc","low")
+    st=next((s for s in sorted(STREAMS,key=len,reverse=True) if re.search(r'\b'+re.escape(s)+r'\b',o)),"CW")
+    su=next((c for c in sorted(SUBJECTS,key=len,reverse=True) if c in o),"99UNS")
+    ty=next((t for t in TYPES if t.upper() in o),"misc")
+    cf="high" if "HIGH" in o else "low"
+    return st,su,ty,cf
 
 def classify(a,sysp,full,fn,rel):
-    """Returns (stream,subj,typ,conf,source). Escalates on 99UNS."""
     ispdf=full.lower().endswith(".pdf")
     snip=doc_text(full)
+    u=lambda txt:f"Filename: {fn}\nFolder: {rel}\nText:\n{txt[:DEEP_CAP]}\n\nAnswer (STREAM SUBJECT TYPE CONF):"
     if len(snip.strip())>=MIN_TEXT:
-        st,su,ty,cf=cls_text(a.api,a.model,sysp,fn,rel,snip); src="text"
-        if su=="99UNS" and ispdf:                       # ESCALATE: book cover/preface -> read 5 pages
+        st,su,ty,cf=parse(llm(a,a.backend,sysp,u(snip))); src="text"
+        if su=="99UNS" and ispdf:
             deep=pdf_text(full,DEEP_PAGES,DEEP_CAP)
             if len(deep)>len(snip):
-                st2,su2,ty2,cf2=cls_text(a.api,a.model,sysp,fn,rel,deep)
-                if su2!="99UNS": return st2,su2,ty2,cf2,"text5"
+                r=parse(llm(a,a.backend,sysp,u(deep)))
+                if r[1]!="99UNS": st,su,ty,cf,src=(*r,"text5"); snip=deep
+        if su=="99UNS" and a.frontier!="none":
+            r=parse(llm(a,a.frontier,sysp,u(snip)))
+            if r[1]!="99UNS": return (*r,"frontier:"+a.frontier)
         return st,su,ty,cf,src
     if a.vision and ispdf and (png:=page_png(full,0)):
-        st,su,ty,cf=cls_vision(a.api,a.vision_model,sysp,fn,rel,png); src="vision"
-        if su=="99UNS" and (png3:=page_png(full,2)):    # ESCALATE: try a mid page
-            st2,su2,ty2,cf2=cls_vision(a.api,a.vision_model,sysp,fn,rel,png3,"(page 3) ")
-            if su2!="99UNS": return st2,su2,ty2,cf2,"vision3"
+        un="(handwritten/scanned page) Answer (STREAM SUBJECT TYPE CONF):"
+        st,su,ty,cf=parse(llm(a,a.backend,sysp,f"Filename: {fn}\nFolder: {rel}\n"+un,png)); src="vision"
+        if su=="99UNS" and (p3:=page_png(full,2)):
+            r=parse(llm(a,a.backend,sysp,f"Filename: {fn}\nFolder: {rel}\n(page 3) "+un,p3))
+            if r[1]!="99UNS": return (*r,"vision3")
         return st,su,ty,cf,src
-    st,su,ty,cf=cls_text(a.api,a.model,sysp,fn,rel,"")   # filename only
-    return st,su,ty,cf,"filename"
+    r=parse(llm(a,a.backend,sysp,u("")))
+    if r[1]=="99UNS" and a.frontier!="none":
+        rf=parse(llm(a,a.frontier,sysp,u("")))
+        if rf[1]!="99UNS": return (*rf,"frontier:"+a.frontier)
+    return (*r,"filename")
 
 def move_by_prefix(root,dest,apply):
     pat=re.compile(r'^\[([A-Z]+)-([0-9A-Z]+)\]\s+(.*)$'); n=0; rows=[]
@@ -127,10 +157,10 @@ def move_by_prefix(root,dest,apply):
         for fn in fns:
             m=pat.match(fn)
             if not m: continue
-            stream,subj,base=m.group(1),m.group(2),m.group(3)
-            newp=os.path.join(dest,stream,subj,base); rows.append((os.path.join(dp,fn),newp)); n+=1
+            newp=os.path.join(dest,m.group(1),m.group(2),m.group(3))
+            rows.append((os.path.join(dp,fn),newp)); n+=1
             if apply:
-                os.makedirs(os.path.join(dest,stream,subj),exist_ok=True)
+                os.makedirs(os.path.join(dest,m.group(1),m.group(2)),exist_ok=True)
                 try: os.rename(os.path.join(dp,fn),newp)
                 except Exception as e: print("move-fail:",fn,e)
     log=os.path.join(dest if apply else root,"_move_log.csv")
@@ -139,34 +169,50 @@ def move_by_prefix(root,dest,apply):
         with open(log,"w",encoding="utf-8",newline="") as g: csv.writer(g).writerows([("from","to")]+rows)
     except Exception: pass
     print(f"{'MOVED' if apply else 'DRY-RUN move'}: {n} files -> {dest}")
+    return n
 
-def main():
-    ap=argparse.ArgumentParser()
+def iter_targets(root):
+    for dp,_,fns in os.walk(root):
+        for fn in fns:
+            if os.path.splitext(fn)[1].lower() in EXT_TEXT and not fn.startswith("["):
+                yield dp,fn
+
+def setup(a):
+    global STREAMS,SUBJECTS,TYPES
+    s,su,ty=load_tags(a.tags); STREAMS=set(s); SUBJECTS=set(su); TYPES=set(ty)
+    return build_system(a.prompt,s,su,ty)
+
+def add_args(ap):
     ap.add_argument("root")
     ap.add_argument("--api",default="http://localhost:1234/v1/chat/completions")
     ap.add_argument("--model",default="local-model")
     ap.add_argument("--vision",action="store_true")
     ap.add_argument("--vision-model",default="local-vision")
+    ap.add_argument("--backend",default="local",choices=["local","openai"])
+    ap.add_argument("--frontier",default="none",choices=["none","claude","openai"])
+    ap.add_argument("--openai-model",default="gpt-4o-mini")
+    ap.add_argument("--tags",default=os.path.join(HERE,"TAGS.md"))
     ap.add_argument("--prompt",default=os.path.join(HERE,"system_prompt.md"))
     ap.add_argument("--apply",action="store_true")
     ap.add_argument("--move",default=None)
     ap.add_argument("--log",default=None)
-    a=ap.parse_args()
+
+def main():
+    ap=argparse.ArgumentParser(); add_args(ap); a=ap.parse_args()
     if a.move: move_by_prefix(a.root,a.move,a.apply); return
-    sysp=load_sys(a.prompt); rows=[]; n=0
-    for dp,_,fns in os.walk(a.root):
-        for fn in fns:
-            if os.path.splitext(fn)[1].lower() not in EXT_TEXT or fn.startswith("["): continue
-            full=os.path.join(dp,fn); rel=os.path.relpath(dp,a.root)
-            st,su,ty,cf,src=classify(a,sysp,full,fn,rel)
-            new=f"[{st}-{su}] {fn}"; rows.append((full,fn,new,st,su,ty,cf,src)); n+=1
-            print(f"{st:5}{su:7}{ty:10}{cf:5}{src:9}{fn[:48]}")
-            if a.apply:
-                try: os.rename(full,os.path.join(dp,new))
-                except Exception as e: print("  rename-fail:",e)
+    sysp=setup(a); rows=[]; n=0
+    for dp,fn in iter_targets(a.root):
+        full=os.path.join(dp,fn); rel=os.path.relpath(dp,a.root)
+        st,su,ty,cf,src=classify(a,sysp,full,fn,rel)
+        new=f"[{st}-{su}] {fn}"; rows.append((full,fn,new,st,su,ty,cf,src)); n+=1
+        print(f"{st:5}{su:7}{ty:10}{cf:5}{src:14}{fn[:46]}")
+        if a.apply:
+            try: os.rename(full,os.path.join(dp,new))
+            except Exception as e: print("  rename-fail:",e)
     logp=a.log or os.path.join(a.root,"_doc_handler_log.csv")
     with open(logp,"w",encoding="utf-8",newline="") as g:
         w=csv.writer(g); w.writerow(["path","old","new","stream","subject","type","conf","source"]); w.writerows(rows)
     print(f"\n{'APPLIED' if a.apply else 'DRY-RUN'}: {n} files. log: {logp}")
-    if not a.apply: print("Review log (focus conf=low, source=filename/vision), then --apply.")
+    if not a.apply: print("Review log (conf=low, source=filename/vision/frontier), then --apply.")
+
 if __name__=="__main__": main()

@@ -4,3 +4,6 @@ include LICENSE
 include README.md
 include GUIDE.md
 include CHANGELOG.md
+
+include TAGS.md
+include system_prompt.md
