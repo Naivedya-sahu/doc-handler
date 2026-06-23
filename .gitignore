@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+
+# Doc-handler run artifacts (logs are per-run, not source)
+_doc_handler_log.csv
+_move_log.csv
+*.skeleton.md
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
