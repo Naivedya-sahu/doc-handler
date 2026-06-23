@@ -82,7 +82,8 @@ Local model handles everything; for stubborn `99UNS` files you can escalate to a
 | `TAGS.md` | **single source of truth** for all tag lists (script + model read this) |
 | `system_prompt.md` | rules/examples template (tags injected from `TAGS.md`) |
 | `requirements.txt` | software needed for independent use |
-| `GUIDE.md` | detailed runbook, tiers, escalation, troubleshooting |
+| `GUIDE.md` | detailed runbook, tiers, escalation, backends |
+| `TROUBLESHOOTING.md` | remote host / firewall port 1234 / common fixes |
 | `CHANGELOG.md` | version history |
 
 Edit tags in **`TAGS.md`** only — changes flow to both the script and the model.
