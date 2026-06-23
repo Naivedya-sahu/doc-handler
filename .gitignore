@@ -9,6 +9,9 @@ dist/
 venv/
 env/
 
+# user config (keep config.example.json as the template)
+config.json
+
 # Tooling
 .pytest_cache/
 .mypy_cache/

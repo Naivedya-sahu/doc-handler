@@ -2,6 +2,22 @@
 
 All notable changes. Newest on top.
 
+## [0.5.0] — 2026-06-23
+### Added
+- **`config.py` + `config.json`** central config (model endpoints, named **hosts**, named
+  **locations**, archive root, options). Precedence: CLI > config.json > defaults.
+  Built for Pi5 deployment — point `host` at the laptop's LM Studio over Tailscale.
+- CLI: `--config`, `--host` (name or URL), `--location NAME`, `--move @archive`. `root` is
+  now optional when `--location` is given.
+- `config.example.json` template with localhost/laptop-Tailscale hosts and local/mount locations.
+- TUI + CLI read config defaults; per-run DPI/min_text/deep_pages now configurable.
+### Fixed
+- **Windows UTF-8 crash** in the TUI (emoji/unicode hit the cp1252 legacy console) — force
+  UTF-8 stdout and disable the legacy Windows renderer.
+### Tested
+- End-to-end live run on real PDFs: text + vision tiers, rename, move, `--move @archive`,
+  config-driven `--location`, and TUI rendering all verified.
+
 ## [0.4.0] — 2026-06-23
 ### Added
 - **`TAGS.md` single source of truth** — STREAM/SUBJECT/TYPE/FACET lists live here; both the

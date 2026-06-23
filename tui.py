@@ -9,10 +9,14 @@ move, and a live progress view with unicode spinners and per-subject bars.
   python tui.py
 """
 from __future__ import annotations
-import os
+import os, sys
 from types import SimpleNamespace
 from collections import Counter
 import doc_handler as dh
+
+# Windows: ensure UTF-8 stdout so unicode (spinners, 🐵, █) never hits cp1252.
+try: sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception: pass
 
 try:
     from rich.console import Console
@@ -24,15 +28,16 @@ try:
 except Exception:
     raise SystemExit("Rich not installed. Run: pip install rich")
 
-C=Console()
+C=Console(legacy_windows=False)
 BANNER="[bold cyan]🐵 DOC-HANDLER[/]  [dim]local-LLM document tagger[/]"
 
-def defaults(root, **kw):
-    a=SimpleNamespace(root=root, api="http://localhost:1234/v1/chat/completions",
-        model="local-model", vision=False, vision_model="qwen2-vl-7b",
-        backend="local", frontier="none", openai_model="gpt-4o-mini",
+def defaults(root, config=None, **kw):
+    from config import load_config, arg_defaults
+    cfg=load_config(config); ad,glb=arg_defaults(cfg)
+    dh.MIN_TEXT,dh.DEEP_PAGES,dh.DEEP_CAP,dh.DPI=glb["MIN_TEXT"],glb["DEEP_PAGES"],glb["DEEP_CAP"],glb["DPI"]
+    a=SimpleNamespace(root=root,
         tags=os.path.join(dh.HERE,"TAGS.md"), prompt=os.path.join(dh.HERE,"system_prompt.md"),
-        apply=False, move=None, log=None)
+        move=None, log=None, **ad)
     a.__dict__.update(kw); return a
 
 def bars(counts, total):

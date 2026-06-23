@@ -16,10 +16,11 @@ Deps: see requirements.txt.
 """
 from __future__ import annotations
 import os, sys, json, csv, re, base64, argparse, subprocess, urllib.request
+from config import load_config, resolve_api, resolve_location, arg_defaults
 
 HERE=os.path.dirname(os.path.abspath(__file__))
 EXT_TEXT={".pdf",".txt",".md",".docx",".pptx",".ppt",".doc"}
-MIN_TEXT=80; DEEP_PAGES=5; DEEP_CAP=4000
+MIN_TEXT=80; DEEP_PAGES=5; DEEP_CAP=4000; DPI=120
 STREAMS=set(); SUBJECTS=set(); TYPES=set()   # filled from TAGS.md
 
 # ---------- tag loading (single source) ----------
@@ -74,12 +75,12 @@ def doc_text(path,cap=2000):
                              if getattr(s,'has_text_frame',False))[:cap]
     except Exception: return ""
     return ""
-def page_png(path,page=0,dpi=120):
+def page_png(path,page=0,dpi=None):
     try:
         import fitz; d=fitz.open(path)
         if d.page_count==0: return None
         if d.page_count<=page: page=0
-        b=d[page].get_pixmap(dpi=dpi).tobytes("png"); d.close(); return b
+        b=d[page].get_pixmap(dpi=dpi or DPI).tobytes("png"); d.close(); return b
     except Exception: return None
 
 # ---------- backends ----------
@@ -183,23 +184,37 @@ def setup(a):
     return build_system(a.prompt,s,su,ty)
 
 def add_args(ap):
-    ap.add_argument("root")
-    ap.add_argument("--api",default="http://localhost:1234/v1/chat/completions")
-    ap.add_argument("--model",default="local-model")
-    ap.add_argument("--vision",action="store_true")
-    ap.add_argument("--vision-model",default="local-vision")
-    ap.add_argument("--backend",default="local",choices=["local","openai"])
-    ap.add_argument("--frontier",default="none",choices=["none","claude","openai"])
-    ap.add_argument("--openai-model",default="gpt-4o-mini")
+    ap.add_argument("root",nargs="?",default=None,help="folder to process (or use --location)")
+    ap.add_argument("--config",default=None,help="path to config.json (else config.json beside script)")
+    ap.add_argument("--host",default=None,help="override model host: a name from config 'hosts' or a raw URL")
+    ap.add_argument("--location",default=None,help="named location from config 'locations'")
+    ap.add_argument("--api",default=None)
+    ap.add_argument("--model",default=None)
+    ap.add_argument("--vision",action="store_true",default=None)
+    ap.add_argument("--vision-model",default=None)
+    ap.add_argument("--backend",default=None,choices=["local","openai"])
+    ap.add_argument("--frontier",default=None,choices=["none","claude","openai"])
+    ap.add_argument("--openai-model",default=None)
     ap.add_argument("--tags",default=os.path.join(HERE,"TAGS.md"))
     ap.add_argument("--prompt",default=os.path.join(HERE,"system_prompt.md"))
-    ap.add_argument("--apply",action="store_true")
-    ap.add_argument("--move",default=None)
+    ap.add_argument("--apply",action="store_true",default=None)
+    ap.add_argument("--move",default=None,help="destination root; or @archive to use config archive_root")
     ap.add_argument("--log",default=None)
 
 def main():
-    ap=argparse.ArgumentParser(); add_args(ap); a=ap.parse_args()
-    if a.move: move_by_prefix(a.root,a.move,a.apply); return
+    ap=argparse.ArgumentParser(); add_args(ap)
+    pre,_=ap.parse_known_args()
+    cfg=load_config(pre.config)
+    ad,glb=arg_defaults(cfg); ap.set_defaults(**ad)
+    a=ap.parse_args()
+    global MIN_TEXT,DEEP_PAGES,DEEP_CAP,DPI
+    MIN_TEXT,DEEP_PAGES,DEEP_CAP,DPI=glb["MIN_TEXT"],glb["DEEP_PAGES"],glb["DEEP_CAP"],glb["DPI"]
+    if a.host: a.api=resolve_api(cfg,a.host)
+    root=resolve_location(cfg,a.location) if a.location else a.root
+    if not root: ap.error("give a ROOT path or --location NAME (see config 'locations')")
+    a.root=root
+    dest=cfg.get("archive_root") if a.move=="@archive" else a.move
+    if dest: move_by_prefix(a.root,dest,bool(a.apply)); return
     sysp=setup(a); rows=[]; n=0
     for dp,fn in iter_targets(a.root):
         full=os.path.join(dp,fn); rel=os.path.relpath(dp,a.root)

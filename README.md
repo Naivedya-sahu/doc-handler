@@ -55,6 +55,18 @@ pip install rich
 python tui.py        # menu: tag (dry/apply) · move · live progress + per-subject bars
 ```
 
+## Config (`config.json`)
+Copy `config.example.json` → `config.json` (gitignored). Holds model endpoint, **named hosts**,
+**named locations**, archive root, and options. CLI flags override it.
+```bash
+python doc_handler.py --location academics_local            # folder + model all from config
+python doc_handler.py --location usb_drive --host laptop_ts # override host (laptop over Tailscale)
+python doc_handler.py --location academics_local --move @archive --apply
+```
+**Pi5 deployment:** the Pi has too little VRAM to host the model, so set `host` to the laptop's
+LM Studio over Tailscale (hostname or `100.x` IP). Point `locations` at folders on the Pi's NVMe,
+an attached USB drive, or an SMB/Tailscale **mount** of a laptop share. You just pass `--location NAME`.
+
 ## Frontier fallback (optional)
 Local model handles everything; for stubborn `99UNS` files you can escalate to a frontier model:
 - `--frontier claude` → shells out to **Claude Code CLI** (`claude -p`), using your Claude subscription (text-only).
@@ -66,6 +78,7 @@ Local model handles everything; for stubborn `99UNS` files you can escalate to a
 |---|---|
 | `doc_handler.py` | the tagger + mover (CLI) |
 | `tui.py` | animated Rich TUI front-end |
+| `config.py` / `config.example.json` | central config — model host/endpoint, named hosts & locations, options |
 | `TAGS.md` | **single source of truth** for all tag lists (script + model read this) |
 | `system_prompt.md` | rules/examples template (tags injected from `TAGS.md`) |
 | `requirements.txt` | software needed for independent use |
