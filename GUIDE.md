@@ -2,62 +2,88 @@
 
 ## 1. What the LLM receives (per file)
 Two messages:
-- **SYSTEM** = the `<SYSTEM>` block of `system_prompt.md` (STREAM + SUBJECT + TYPE vocab, rules, examples). Same every call.
-- **USER** = built per file:
+- **SYSTEM** = the `<SYSTEM>` block of `system_prompt.md` with `{{STREAMS}}/{{SUBJECTS}}/{{TYPES}}`
+  filled from `TAGS.md` (single source). Same every call.
+- **USER** = per file:
   - *text tier:* `Filename / Folder / Text(<=4000 chars) / Answer (STREAM SUBJECT TYPE CONF):`
-  - *vision tier:* same line **+ the page rendered to PNG** as an image.
+  - *vision tier:* same + the page rendered to PNG.
   - *filename tier:* same with empty text.
-Settings: `temperature=0`, `max_tokens=16`. The model replies one line, e.g. `CW 12EMAG notes high`.
+Settings: `temperature=0`, `max_tokens=24`. Reply is one line, e.g. `CW 12EMAG notes high`
+(or with a discovery: `CW 99UNS notes high PROPOSE:THERMO`).
 
 ## 2. Classification tiers (in order)
-1. **TEXT** — extract first 2 pages. If ≥80 chars → text model.
-2. **ESCALATE (the book fix)** — if the answer SUBJECT is `99UNS` and the file is a PDF,
-   re-read **up to 5 pages** (skips past cover/preface/TOC) and retry once.
-   Logged as `source=text5`.
-3. **VISION** — if no extractable text → render page 1 to image → vision model.
-   Still `99UNS`? render **page 3** and retry → `source=vision3`.
-4. **FILENAME** — no text, no vision → classify from filename + folder path.
+1. **TEXT** — first 2 pages; if ≥80 chars → text model.
+2. **ESCALATE** — if SUBJECT is `99UNS` on a PDF, re-read **up to 5 pages** (past cover/preface/TOC)
+   and retry → `source=text5`.
+3. **VISION** — no extractable text → render page 1 → vision model; still `99UNS`? page 3 → `vision3`.
+4. **FRONTIER** *(optional)* — if still `99UNS` and `--frontier` set, ask a frontier model → `source=frontier:<be>`.
+5. **FILENAME** — last resort.
+Trust order: `text > text5 > vision > vision3 > frontier > filename` (the `source` column).
 
-`source` in the log tells you which tier decided. Trust order: `text > text5 > vision > vision3 > filename`.
-
-## 3. The tag scheme
-- **Prefix = `[STREAM-SUBJECT]`** — the only thing added to the filename.
-  - STREAM peels special cases: `GATE`, `PROJ`, `RES`, `REC` separate from `CW`.
-  - SUBJECT unifies coursework: all EMF → `12EMAG`, regardless of source.
-- **TYPE / CONF** go to the log only (not the name) — used to review, and later for Obsidian tags.
-- **Mutual exclusivity**: model must pick ONE STREAM + ONE SUBJECT from the fixed lists;
-  multi-subject or unsure → `99UNS` → stays for manual split (never mis-filed).
+## 3. The tag scheme — known + discovered
+- **Prefix `[STREAM-SUBJECT]`** is the only thing added to the name. STREAM peels GATE/PROJ/RES/REC
+  from CW; SUBJECT unifies coursework by topic. TYPE/CONF go to the log only.
+- **Known tags** live in `TAGS.md` (6 streams · 17 subjects + NA/99UNS · 11 types). The model is
+  constrained to these → mutually exclusive, decisive.
+- **Discovered tags**: a coherent subject not in the list → `99UNS PROPOSE:<LABEL>` → file written
+  `[STREAM-~LABEL]` (the `~` = pending review, **not auto-moved**). `--review` tallies them; promote a
+  recurring one into `TAGS.md`, then `--retag` re-files the `~LABEL` files into the new real code.
 
 ## 4. Full workflow
 ```
-0. BACKUP        copy Academics -> AcademicsCOPY        (always work on the copy)
+0. BACKUP        copy Academics -> AcademicsCOPY                 (work on the copy)
 1. DEDUP         dupeGuru: Scan Type Folders, then Contents; Re-Prioritize (suffix down);
                  Move Marked to quarantine. Kill copies BEFORE tagging.
-2. TAG dry-run   python doc_handler.py "AcademicsCOPY" --vision --vision-model qwen2-vl-7b
-                 -> review _doc_handler_log.csv
-3. TAG apply     python doc_handler.py "AcademicsCOPY" --apply --vision --vision-model qwen2-vl-7b
-4. MOVE dry-run  python doc_handler.py "AcademicsCOPY" --move "D:\Archive\Academics"
-5. MOVE apply    python doc_handler.py "AcademicsCOPY" --move "D:\Archive\Academics" --apply
-6. SPECIAL       handle D:\Archive\Academics\{GATE,PROJ,RES,REC} folders separately
+2. CONFIG        config.json: host -> your model server; locations -> the folder(s)
+3. TAG dry-run   python doc_handler.py --location academics --vision
+                 -> review _doc_handler_log.csv   (or: --review -> TAG-REVIEW.md)
+4. TAG apply     python doc_handler.py --location academics --vision --apply
+5. (optional)    promote any ~PROPOSE tags into TAGS.md, then:  ... --retag --apply
+6. MOVE          python doc_handler.py --location academics --move @archive          (dry-run)
+                 python doc_handler.py --location academics --move @archive --apply
+7. SPECIAL       handle <archive>/{GATE,PROJ,RES,REC} folders separately
 ```
+TUI equivalent: `python tui.py` (menu: tag dry/apply, move).
 
-## 5. Reviewing the log
-Sort `_doc_handler_log.csv` by:
-- `conf=low` → eyeball, fix prefix by hand if wrong.
-- `source=filename` → weakest signal; verify.
-- `subject=99UNS` → multi-subject/unsure → split manually or leave.
-Renames are reversible from the `old`/`new` columns; moves from `_move_log.csv` (`from`/`to`).
+## 5. Flags
+| Flag | Purpose |
+|---|---|
+| `--location NAME` / `root` | folder from config, or a raw path |
+| `--host NAME\|URL` | model endpoint (config `hosts` name or URL) |
+| `--vision [--vision-model M]` | enable image tier for no-text PDFs |
+| `--apply` | rename (default is dry-run) |
+| `--move DEST` / `--move @archive` | relocate prefixed files into DEST/STREAM/SUBJECT |
+| `--review` | aggregate log → TAG-REVIEW.md (offline) |
+| `--retag` | re-classify already-prefixed files (after tuning/promoting) |
+| `--frontier claude\|cmd\|openai` | hard-99UNS fallback (see §6) |
+| `--backend local\|openai` | main backend |
 
-## 6. Tuning
-- Edit `system_prompt.md` lists/examples to add subjects or sharpen rules. No code change needed.
-- `MIN_TEXT` (80), `DEEP_PAGES` (5), `DEEP_CAP` (4000) are constants at the top of `doc_handler.py`.
+## 6. Backends (free vs API)
+- **local** — LM Studio (default). Free, no key. The recommended main backend.
+- **frontier claude** — Claude Code CLI on your **Claude subscription, NO API key**. Pinned to
+  `--frontier-model haiku` (standard context; the default 1M model needs paid credits). Slower
+  (~30 s/file) — use only for hard cases.
+- **frontier cmd** — `--frontier-cmd "<shell template>"`, prompt piped via stdin → wire ANY local/
+  sub CLI without a key.
+- **openai / frontier openai** — needs `OPENAI_API_KEY` (paid). ChatGPT web sub is NOT an API.
 
-## 7. Troubleshooting
+## 7. Tuning
+- Add/edit tags in **`TAGS.md`** only (flows to script + prompt). Sharpen rules/examples in `system_prompt.md`.
+- `config.json` holds endpoints, locations, archive_root, and `min_text/deep_pages/dpi`.
+
+## 8. Reviewing & reversibility
+- `--review` → TAG-REVIEW.md: distribution, proposed (`~`) tags, low-confidence list.
+- Eyeball `conf=low`, `source=filename/vision/frontier`, `subject=99UNS`.
+- Renames reversible via the log `old`/`new`; moves via `_move_log.csv` (`from`/`to`).
+
+## 9. Troubleshooting
 | Symptom | Fix |
 |---|---|
-| Every file `99UNS` | model not following format — try a stronger model, lower file count, confirm Server running |
-| `api-error` | LM Studio server not started, or wrong `--api` URL/port |
+| Server unreachable / hangs | start LM Studio; enable LAN + firewall TCP 1234 (see TROUBLESHOOTING.md) |
+| Every file `99UNS` | weak model — use a 7B/8B vision model, or `--frontier claude` |
+| Configured model not used | not loaded; auto-resolve picked a loaded one (see `[model] ->` line) |
 | PDFs skipped | `pip install pymupdf` |
 | `.docx/.pptx` skipped | `pip install python-docx python-pptx` |
-| Vision tier never fires | pass `--vision` and a loaded vision model name via `--vision-model` |
-| Slow | vision is heavier; run text-only first, then a `--vision` pass on the remainder |
+| `.doc` filename-only | needs Word + `pip install pywin32` (or convert .doc→.docx) |
+| TUI garbled in cmd | fixed in 0.6.1 (ASCII-safe); use Windows Terminal for nicer look |
+| frontier claude empty | ensure `claude` CLI logged in; it uses `--model haiku` by default |
