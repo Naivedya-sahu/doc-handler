@@ -2,6 +2,14 @@
 
 All notable changes. Newest on top.
 
+## [0.6.1] — 2026-06-23
+### Fixed
+- **TUI broke in cmd.exe** — v0.5.0 forced `legacy_windows=False`, which emits raw ANSI/VT that
+  cmd doesn't render, and the 🐵 emoji / braille spinner / unicode box chars aren't in cmd's
+  codepage. Now: auto-detect terminal, enable VT via `os.system("")`, and render **ASCII-safe**
+  (no emoji, `line` spinner, `+-|` box, `#` bars). Works in cmd.exe **and** Windows Terminal.
+- TUI apply path is now collision-safe (`unique_path`), matching the CLI.
+
 ## [0.6.0] — 2026-06-23
 ### Added
 - **Foundation subjects** `91PHY` (physics), `92CHEM` (chemistry) — physics no longer forced into EE codes.
