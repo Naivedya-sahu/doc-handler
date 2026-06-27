@@ -11,7 +11,7 @@ streams live into the dark log pane. An in-app editor lets you edit the tag list
 Tkinter ships with standard CPython on Windows; no extra install.
 """
 from __future__ import annotations
-import os, sys, time, subprocess, threading, queue
+import os, sys, re, time, subprocess, threading, queue
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -274,7 +274,56 @@ class App:
             self.var_el.set(f"{int(time.time() - self._run_t0)}s")
         self.root.after(100, self.drain)
 
-    # ---- in-app tag editor ----
+    # ---- in-app tag editor (structured: add/delete + colour coding) ----
+    FOUND = {"00MM", "90HUM", "91PHY", "92CHEM"}      # foundation (non-core-EE) subjects
+    SPECIAL = {"NA", "99UNS"}                          # not real topics
+
+    @staticmethod
+    def _tag_block(text, header):
+        m = re.search(r"##\s*" + header + r".*?```tags\n(.*?)```", text, re.S | re.I)
+        return [l.rstrip() for l in (m.group(1).splitlines() if m else []) if l.strip()]
+
+    @staticmethod
+    def _replace_block(text, header, lines):
+        pat = re.compile(r"(##\s*" + header + r".*?```tags\n)(.*?)(```)", re.S | re.I)
+        body = "\n".join(x.rstrip() for x in lines if x.strip()) + "\n"
+        return pat.sub(lambda m: m.group(1) + body + m.group(3), text, count=1)
+
+    def _colour_list(self, lb, base, name):
+        for i in range(lb.size()):
+            toks = lb.get(i).split()
+            code = toks[0] if toks else ""
+            c = base
+            if name == "SUBJECTS" and code in self.FOUND: c = "#e0a45e"   # foundation amber
+            if code in self.SPECIAL: c = MUTED
+            lb.itemconfig(i, fg=c)
+
+    def _tag_column(self, parent, name, items, colour):
+        fr = tk.Frame(parent, bg=PANEL, highlightthickness=1, highlightbackground=PANEL2)
+        fr.pack(side="left", fill="both", expand=True, padx=6)
+        tk.Label(fr, text=name, bg=PANEL, fg=colour, font=FONT_B).pack(anchor="w", padx=10, pady=(8, 4))
+        lb = tk.Listbox(fr, bg=ENTRY, fg=FG, font=MONO, selectbackground=ACCENT, selectforeground="#fff",
+                        relief="flat", highlightthickness=0, activestyle="none")
+        lb.pack(fill="both", expand=True, padx=10)
+        for it in items: lb.insert("end", it)
+        self._colour_list(lb, colour, name)
+        row = tk.Frame(fr, bg=PANEL); row.pack(fill="x", padx=10, pady=8)
+        ent = tk.Entry(row, bg=ENTRY, fg=FG, insertbackground=FG, relief="flat", font=FONT,
+                       highlightthickness=1, highlightbackground=PANEL2, highlightcolor=colour)
+        ent.pack(side="left", fill="x", expand=True, ipady=3)
+        def add():
+            v = ent.get().strip()
+            if v: lb.insert("end", v); self._colour_list(lb, colour, name); ent.delete(0, "end")
+        def dele():
+            for i in reversed(lb.curselection()): lb.delete(i)
+        def edit(_e):                                  # double-click: pull into entry to re-add
+            sel = lb.curselection()
+            if sel: ent.delete(0, "end"); ent.insert(0, lb.get(sel[0])); lb.delete(sel[0])
+        ent.bind("<Return>", lambda e: add()); lb.bind("<Double-Button-1>", edit)
+        self._btn(row, "+ Add", add).pack(side="left", padx=(6, 2))
+        self._btn(row, "Del", dele).pack(side="left")
+        return lb
+
     def edit_tags(self):
         path = config.tags_path()
         try:
@@ -282,27 +331,27 @@ class App:
         except Exception as e:
             messagebox.showerror("Edit Tags", f"Could not read {path}\n{e}"); return
         win = tk.Toplevel(self.root); win.title("Edit Tags  -  TAGS.md"); win.configure(bg=BG)
-        win.geometry("720x600")
-        tk.Label(win, text=path, bg=BG, fg=MUTED, font=FONT).pack(fill="x", padx=14, pady=(12, 4), anchor="w")
-        wrap = tk.Frame(win, bg=PANEL2); wrap.pack(fill="both", expand=True, padx=14, pady=4)
-        txt = tk.Text(wrap, wrap="none", bg=ENTRY, fg=FG, insertbackground=FG, relief="flat",
-                      font=MONO, padx=10, pady=8, bd=0, undo=True)
-        sb = tk.Scrollbar(wrap, command=txt.yview, bg=PANEL2, troughcolor=ENTRY, bd=0)
-        txt.configure(yscrollcommand=sb.set); sb.pack(side="right", fill="y"); txt.pack(side="left", fill="both", expand=True)
-        txt.insert("1.0", text)
+        win.geometry("940x560")
+        tk.Label(win, text="first token on each line = the code · double-click to edit · colour: stream / subject / type / foundation",
+                 bg=BG, fg=MUTED, font=FONT).pack(fill="x", padx=14, pady=(12, 2), anchor="w")
+        cols = tk.Frame(win, bg=BG); cols.pack(fill="both", expand=True, padx=8, pady=6)
+        lists = {}
+        for name, colour in (("STREAMS", ACCENT), ("SUBJECTS", ACCENT2), ("TYPES", OK)):
+            lists[name] = self._tag_column(cols, name, self._tag_block(text, name), colour)
         bar = tk.Frame(win, bg=BG); bar.pack(fill="x", padx=14, pady=10)
 
         def save():
+            new = text
+            for name in ("STREAMS", "SUBJECTS", "TYPES"):
+                new = self._replace_block(new, name, list(lists[name].get(0, "end")))
             try:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(txt.get("1.0", "end-1c"))
+                open(path, "w", encoding="utf-8").write(new)
                 self.status.config(text="tags saved", fg=OK); win.destroy()
             except Exception as e:
                 messagebox.showerror("Edit Tags", f"Save failed\n{e}")
 
         self._btn(bar, "Save", save, accent=True).pack(side="left")
         self._btn(bar, "Cancel", win.destroy, accent=False).pack(side="left", padx=8)
-        tk.Label(bar, text="codes = first token per line inside ```tags blocks", bg=BG, fg=MUTED, font=FONT).pack(side="right")
 
 
 def main():
