@@ -27,6 +27,8 @@ _doc_handler_log.csv
 _docsort_log.csv
 _docsort_state.jsonl
 _move_log.csv
+DOCSORT-REPORT.md
+TAG-REVIEW.md
 *.skeleton.md
 
 # OS

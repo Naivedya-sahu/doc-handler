@@ -19,8 +19,11 @@ TYPE (one): {{TYPES}}
 CONF: high or low
 
 Rules:
+- OUTPUT FORMAT IS ABSOLUTE: exactly the four tokens on ONE line, space-separated, in order
+  (STREAM SUBJECT TYPE CONF). No preamble, no quotes, no markdown, no explanation, no trailing text.
 - DECIDE FROM THE ACTUAL CONTENT you are shown — real headings, equations, diagrams —
   not just the filename. The filename/folder only break ties.
+- If you are shown an IMAGE, read the text/figures in it first, then decide.
 - Handwritten / scanned page: read the visible content to infer the subject.
 - Books & published PDFs: page 1 is often a COVER / PREFACE / TABLE OF CONTENTS with no topic.
   If the text is only front-matter, answer 99UNS — the system resends up to 5 pages.

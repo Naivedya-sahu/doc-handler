@@ -2,6 +2,24 @@
 
 All notable changes. Newest on top.
 
+## [0.10.0] — 2026-06-28
+### Added
+- **Exclude / Include folder lists** — config `exclude` / `include` (+ CLI `--exclude` / `--include`,
+  repeatable). Exclude skips folders; include restricts to them. GUI **Folders** dialog manages both.
+  Hook reserved: `folder_tags` for future direct folder→tag.
+- **Reports + lifetime stats** — every run writes `DOCSORT-REPORT.md` (distribution, types, proposals,
+  low-conf, failures) and appends a summary to a global `%APPDATA%/docsort/index.jsonl`.
+  `--report` rebuilds offline, `--stats` prints lifetime totals. GUI **Report** viewer.
+- **`--undo`** — reverse the renames/moves recorded in the journal (incl. misc moves). Real
+  reversibility, backed by the journal `dst` field.
+- **`--retry-failed`** — re-process only files marked `failed`.
+- **Structured GUI tag editor** — add/delete buttons + colour coding (stream / subject / type /
+  foundation), double-click to edit; rebuilds `TAGS.md` blocks in place.
+- **`docs/MODEL-GUIDE.md`** — OCR-strong GGUF model shortlist (Qwen3-VL / Unsloth UD) + LM Studio
+  context/GPU tuning + a benchmark method.
+### Changed
+- System prompt hardened for strict one-line output and explicit "read the image first".
+
 ## [0.9.0] — 2026-06-28
 ### Added
 - **Run journal** (`_docsort_state.jsonl`, append-only, flushed per file) — crash-safe source

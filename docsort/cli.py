@@ -21,10 +21,10 @@ import os, sys, json, csv, re, time, base64, argparse, subprocess, shutil, shlex
 
 try:                                   # works installed (package) and as `python -m docsort.cli`
     from .config import (load_config, resolve_api, resolve_location, arg_defaults,
-                         tags_path, prompt_path, config_path)
+                         tags_path, prompt_path, config_path, user_dir)
 except ImportError:                    # fallback if run as a loose script
     from config import (load_config, resolve_api, resolve_location, arg_defaults,
-                        tags_path, prompt_path, config_path)
+                        tags_path, prompt_path, config_path, user_dir)
 
 def unique_path(p):
     """Avoid overwriting: foo.pdf -> foo__1.pdf if taken."""
@@ -283,6 +283,22 @@ def iter_targets(root):
             if os.path.splitext(fn)[1].lower() in EXT_TEXT and not fn.startswith("["):
                 yield dp,fn,fn                       # (dir, current name, base name)
 
+def _folder_match(full, root, folder):
+    """True if `full`'s directory is under `folder` (absolute prefix, or relative segment/prefix of root)."""
+    d=os.path.dirname(os.path.abspath(full)).replace("\\","/")
+    f=folder.replace("\\","/").rstrip("/")
+    if not f: return False
+    if os.path.isabs(folder): return d==f or d.startswith(f+"/")
+    rel=os.path.relpath(os.path.dirname(full),root).replace("\\","/")
+    rel="" if rel=="." else rel
+    parts=rel.split("/") if rel else []
+    return rel==f or rel.startswith(f+"/") or f in parts
+
+def passes_filter(full, root, include, exclude):
+    if exclude and any(_folder_match(full,root,x) for x in exclude): return False
+    if include and not any(_folder_match(full,root,x) for x in include): return False
+    return True
+
 _TAGPFX=re.compile(r'^\[[^\]]+\]\s+(.*)$')
 def iter_tagged(root):
     """Already-prefixed docs, for --retag. Yields (dir, current name, stripped base)."""
@@ -315,6 +331,72 @@ def review(root, log=None):
     print(f"review -> {p}")
     print(f"proposals: {dict(props) or 'none'} | low-conf: {len(low)} | groups: {len(combo)}")
 
+def _journal_rows(root):
+    """Dedup journal -> latest row per file."""
+    p=os.path.join(root,"_docsort_state.jsonl")
+    if not os.path.isfile(p): return []
+    last={}
+    for ln in open(p,encoding="utf-8",errors="replace"):
+        try: j=json.loads(ln); last[j.get("rel")]=j
+        except Exception: pass
+    return list(last.values())
+
+def report(root):
+    """Build DOCSORT-REPORT.md from the journal + append a run summary to the global index."""
+    import collections
+    rows=_journal_rows(root)
+    if not rows: print("no journal at",root); return None
+    done=[r for r in rows if r.get("status")=="done"]
+    fails=[r for r in rows if r.get("status")=="failed"]
+    combo=collections.Counter(f"{r['stream']}-{r['subject']}" for r in done)
+    types=collections.Counter(r.get("type") for r in done)
+    props=collections.Counter(r["subject"] for r in done if str(r.get("subject","")).startswith("~"))
+    low=[r for r in done if r.get("conf")=="low"]
+    out=["# docsort report","",f"{len(rows)} files · {len(done)} done · {len(fails)} failed · "
+         f"{len(props)} proposals · {len(low)} low-conf","","## stream-subject"]
+    out+=[f"- `{k}` x{c}" for k,c in combo.most_common()]
+    out+=["","## types"]+[f"- {k} x{c}" for k,c in types.most_common()]
+    if props: out+=["","## proposals (~ — promote in Edit Tags, then --retag)"]+[f"- {k} x{c}" for k,c in props.most_common()]
+    if low: out+=["","## low-confidence (eyeball)"]+[f"- {r['stream']}-{r['subject']} · {r.get('source')} · {r.get('name')}" for r in low[:50]]
+    if fails: out+=["","## failed"]+[f"- {r.get('name')} — {r.get('error')}" for r in fails[:50]]
+    rp=os.path.join(root,"DOCSORT-REPORT.md"); open(rp,"w",encoding="utf-8").write("\n".join(out))
+    try:
+        rec={"ts":int(time.time()),"root":root,"n":len(rows),"done":len(done),
+             "failed":len(fails),"by":dict(combo)}
+        open(os.path.join(user_dir(),"index.jsonl"),"a",encoding="utf-8").write(json.dumps(rec)+"\n")
+    except Exception: pass
+    print(f"report -> {rp}  ({len(done)} done, {len(fails)} failed)")
+    return rp
+
+def undo(root):
+    """Reverse renames/moves recorded in the journal (restore originals)."""
+    moves=[(j["dst"],j["rel"]) for j in _journal_rows(root)
+           if j.get("status")=="done" and j.get("dst") and j.get("dst")!=j.get("rel")]
+    n=0
+    for dst,rel in reversed(moves):
+        src=os.path.join(root,dst); tgt=os.path.join(root,rel)
+        if os.path.exists(src):
+            try:
+                os.makedirs(os.path.dirname(tgt),exist_ok=True); shutil.move(src,unique_path(tgt)); n+=1
+            except Exception as e: print("  undo-fail:",dst,e)
+    print(f"undo: restored {n} files in {root}")
+
+def stats():
+    """Lifetime totals from the global index."""
+    import collections
+    idx=os.path.join(user_dir(),"index.jsonl")
+    if not os.path.isfile(idx): print("no global index yet — run a tagging pass first"); return
+    runs=[];
+    for ln in open(idx,encoding="utf-8",errors="replace"):
+        try: runs.append(json.loads(ln))
+        except Exception: pass
+    tot=collections.Counter(); files=0
+    for r in runs:
+        files+=r.get("done",0)
+        for k,c in (r.get("by") or {}).items(): tot[k]+=c
+    print(f"docsort lifetime: {len(runs)} runs · {files} files tagged")
+    for k,c in tot.most_common(25): print(f"  {k}: {c}")
+
 def setup(a):
     global STREAMS,SUBJECTS,TYPES
     s,su,ty=load_tags(a.tags); STREAMS=set(s); SUBJECTS=set(su); TYPES=set(ty)
@@ -342,8 +424,14 @@ def add_args(ap):
                     help="move 99UNS (unsure) files into a 'misc' subfolder (default ON; use --no-misc to disable)")
     ap.add_argument("--move",default=None,help="destination root; or @archive to use config archive_root")
     ap.add_argument("--review",action="store_true",help="aggregate the run log into TAG-REVIEW.md (offline)")
+    ap.add_argument("--report",action="store_true",help="(re)build DOCSORT-REPORT.md from the journal + update global index (offline)")
+    ap.add_argument("--undo",action="store_true",help="reverse the renames/moves recorded in the journal")
+    ap.add_argument("--stats",action="store_true",help="print lifetime stats from the global index, then exit")
+    ap.add_argument("--retry-failed",dest="retry_failed",action="store_true",help="re-process only files marked 'failed' in the journal")
     ap.add_argument("--retag",action="store_true",help="re-classify already-prefixed files (after tuning/promoting a proposal)")
     ap.add_argument("--resume",action="store_true",help="skip files already done in the run journal (_docsort_state.jsonl)")
+    ap.add_argument("--exclude",action="append",default=None,help="folder to skip (repeatable); adds to config 'exclude'")
+    ap.add_argument("--include",action="append",default=None,help="only process this folder (repeatable); adds to config 'include'")
     ap.add_argument("--log",default=None)
 
 def main(argv=None):
@@ -365,9 +453,12 @@ def main(argv=None):
             tag=" [VL]" if ("vl" in m.lower() or "vision" in m.lower()) else (" [embed]" if "embed" in m.lower() else "")
             print(f"  {m}{tag}")
         return
+    if a.stats: stats(); return                              # global, no root needed
     root=resolve_location(cfg,a.location) if a.location else a.root
     if not root: ap.error("give a ROOT path or --location NAME (see config 'locations')")
     a.root=root
+    if a.report: report(a.root); return                      # offline
+    if a.undo: undo(a.root); return                          # offline
     if a.review: setup(a); review(a.root,a.log); return     # offline; no model server needed
     if a.move=="@archive":
         dest=cfg.get("archive_root")
@@ -388,7 +479,14 @@ def main(argv=None):
             vm,up=resolve_model(a.api,a.vision_model,prefer_vision=True)
             if up and vm!=a.vision_model: print(f"[vision] '{a.vision_model}' not loaded -> '{vm}'"); a.vision_model=vm
     sysp=setup(a); rows=[]; n=0
-    items=list(iter_tagged(a.root) if a.retag else iter_targets(a.root))
+    include=(cfg.get("include") or [])+(a.include or [])   # config + CLI
+    exclude=(cfg.get("exclude") or [])+(a.exclude or [])
+    items=[t for t in (iter_tagged(a.root) if a.retag else iter_targets(a.root))
+           if passes_filter(os.path.join(t[0],t[1]),a.root,include,exclude)]
+    if a.retry_failed:
+        failed={j.get("rel") for j in _journal_rows(a.root) if j.get("status")=="failed"}
+        items=[t for t in items if os.path.relpath(os.path.join(t[0],t[1]),a.root) in failed]
+    if include or exclude: print(f"[filter] include={include or '-'} exclude={exclude or '-'} -> {len(items)} files")
     N=len(items)
     done_set=journal_done(a.root) if a.resume else {}
     jf=open(os.path.join(a.root,"_docsort_state.jsonl"),"a",encoding="utf-8")
@@ -410,18 +508,19 @@ def main(argv=None):
             new=f"[{st}-{su}] {base}"; rows.append((full,fn,new,st,su,ty,cf,src)); n+=1; proc+=1
             tomisc=bool(a.misc) and su=="99UNS" and status=="done"
             print(f"{st:5}{su:7}{ty:10}{cf:5}{src:14}{base[:46]}{'  ->misc' if tomisc else ''}{'  FAIL' if status=='failed' else ''}")
+            cur=full
             if a.apply and status=="done":
-                cur=full
                 if new!=fn:
-                    cur=unique_path(os.path.join(dp,new))
-                    try: os.rename(full,cur)
-                    except Exception as e: print("  rename-fail:",e); cur=full; status="failed"; err="rename:"+str(e)[:160]
-                if tomisc:
-                    try: move_to_misc(a.root,cur)
+                    nt=unique_path(os.path.join(dp,new))
+                    try: os.rename(full,nt); cur=nt
+                    except Exception as e: print("  rename-fail:",e); status="failed"; err="rename:"+str(e)[:160]
+                if tomisc and status=="done":
+                    try: cur=move_to_misc(a.root,cur)
                     except Exception as e: print("  misc-move-fail:",e)
             dn+=(status=="done"); fl+=(status=="failed")
             jf.write(json.dumps({"rel":rel,"name":base,"mtime":mt,"status":status,"stream":st,
-                                 "subject":su,"type":ty,"conf":cf,"source":src,"error":err,
+                                 "subject":su,"type":ty,"conf":cf,"source":src,
+                                 "dst":os.path.relpath(cur,a.root),"error":err,
                                  "ts":int(time.time())})+"\n"); jf.flush()
             el=time.time()-t0; tps=(toks/el) if el>0 else 0; avg=el/max(proc,1)
             eta=int(avg*max(N-proc-skipped,0))
@@ -442,6 +541,7 @@ def main(argv=None):
     with open(logp,"w",encoding="utf-8",newline="") as g:
         w=csv.writer(g); w.writerow(["path","old","new","stream","subject","type","conf","source"]); w.writerows(rows)
     print(f"\n{'APPLIED' if a.apply else 'DRY-RUN'}: {n} files ({fl} failed). log: {logp}")
-    if not a.apply: print("Review log (conf=low, source=filename/vision/frontier), then --apply.")
+    report(a.root)                                           # DOCSORT-REPORT.md + global index
+    if not a.apply: print("Review DOCSORT-REPORT.md (low-conf, failed, proposals), then --apply.")
 
 if __name__=="__main__": main()

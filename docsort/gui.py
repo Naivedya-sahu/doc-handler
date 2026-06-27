@@ -115,6 +115,8 @@ class App:
         self.stop_btn = self._btn(bar, "Stop", self.stop, accent=False)
         self.stop_btn.configure(state="disabled"); self.stop_btn.pack(side="left", padx=8)
         self._btn(bar, "Edit Tags", self.edit_tags, accent=False).pack(side="left", padx=8)
+        self._btn(bar, "Folders", self.folders, accent=False).pack(side="left")
+        self._btn(bar, "Report", self.show_report, accent=False).pack(side="left", padx=8)
         self._btn(bar, "Clear log", lambda: self.log_box.delete("1.0", "end"), accent=False).pack(side="left")
         self.status = tk.Label(bar, text="idle", bg=BG, fg=MUTED, font=FONT)
         self.status.pack(side="right")
@@ -323,6 +325,66 @@ class App:
         self._btn(row, "+ Add", add).pack(side="left", padx=(6, 2))
         self._btn(row, "Del", dele).pack(side="left")
         return lb
+
+    # ---- report viewer (DOCSORT-REPORT.md from the selected folder, or its COPY) ----
+    def show_report(self):
+        folder = self.folder.get().strip()
+        cands = [os.path.join(folder, "DOCSORT-REPORT.md"),
+                 os.path.join(folder + "COPY", "DOCSORT-REPORT.md")]
+        path = next((p for p in cands if os.path.isfile(p)), None)
+        if not path:
+            messagebox.showinfo("Report", "No DOCSORT-REPORT.md yet — run a tagging pass first."); return
+        try: text = open(path, encoding="utf-8").read()
+        except Exception as e: messagebox.showerror("Report", str(e)); return
+        win = tk.Toplevel(self.root); win.title("Report  -  " + os.path.basename(os.path.dirname(path)))
+        win.configure(bg=BG); win.geometry("680x600")
+        tk.Label(win, text=path, bg=BG, fg=MUTED, font=FONT).pack(fill="x", padx=14, pady=(12, 4), anchor="w")
+        wrap = tk.Frame(win, bg=PANEL2); wrap.pack(fill="both", expand=True, padx=14, pady=(0, 12))
+        t = tk.Text(wrap, wrap="word", bg=ENTRY, fg=FG, relief="flat", font=MONO, padx=10, pady=8, bd=0)
+        sb = tk.Scrollbar(wrap, command=t.yview, bg=PANEL2, troughcolor=ENTRY, bd=0)
+        t.configure(yscrollcommand=sb.set); sb.pack(side="right", fill="y"); t.pack(side="left", fill="both", expand=True)
+        t.insert("1.0", text); t.configure(state="disabled")
+
+    # ---- exclude / include folder lists (saved to config.json) ----
+    def folders(self):
+        import json
+        cfgp = config.config_path()
+        try: data = json.load(open(cfgp, encoding="utf-8"))
+        except Exception: data = {}
+        win = tk.Toplevel(self.root); win.title("Folders  -  exclude / include"); win.configure(bg=BG)
+        win.geometry("760x440")
+        tk.Label(win, text="Exclude = skip these folders.   Include = if non-empty, ONLY these.   (paths or folder names)",
+                 bg=BG, fg=MUTED, font=FONT).pack(fill="x", padx=14, pady=(12, 2), anchor="w")
+        cols = tk.Frame(win, bg=BG); cols.pack(fill="both", expand=True, padx=8, pady=6)
+        boxes = {}
+        for key, label, colour in (("exclude", "Exclude", "#e0715e"), ("include", "Include", OK)):
+            fr = tk.Frame(cols, bg=PANEL, highlightthickness=1, highlightbackground=PANEL2)
+            fr.pack(side="left", fill="both", expand=True, padx=6)
+            tk.Label(fr, text=label, bg=PANEL, fg=colour, font=FONT_B).pack(anchor="w", padx=10, pady=(8, 4))
+            lb = tk.Listbox(fr, bg=ENTRY, fg=FG, font=MONO, selectbackground=ACCENT, selectforeground="#fff",
+                            relief="flat", highlightthickness=0, activestyle="none")
+            lb.pack(fill="both", expand=True, padx=10)
+            for it in (data.get(key) or []): lb.insert("end", it)
+            row = tk.Frame(fr, bg=PANEL); row.pack(fill="x", padx=10, pady=8)
+            def mk_add(lb=lb):
+                d = filedialog.askdirectory(title="Add folder")
+                if d: lb.insert("end", d)
+            def mk_del(lb=lb):
+                for i in reversed(lb.curselection()): lb.delete(i)
+            self._btn(row, "+ Add folder", mk_add).pack(side="left")
+            self._btn(row, "Del", mk_del).pack(side="left", padx=6)
+            boxes[key] = lb
+        bar = tk.Frame(win, bg=BG); bar.pack(fill="x", padx=14, pady=10)
+        def save():
+            data["exclude"] = list(boxes["exclude"].get(0, "end"))
+            data["include"] = list(boxes["include"].get(0, "end"))
+            try:
+                json.dump(data, open(cfgp, "w", encoding="utf-8"), indent=2)
+                self.status.config(text="folders saved", fg=OK); win.destroy()
+            except Exception as e:
+                messagebox.showerror("Folders", f"Save failed\n{e}")
+        self._btn(bar, "Save", save, accent=True).pack(side="left")
+        self._btn(bar, "Cancel", win.destroy).pack(side="left", padx=8)
 
     def edit_tags(self):
         path = config.tags_path()

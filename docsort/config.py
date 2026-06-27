@@ -33,6 +33,9 @@ DEFAULTS = {
         "localhost": "http://localhost:1234/v1/chat/completions",
     },
     "locations": {},                       # name -> {type: local|mount|ssh, path, note}
+    "exclude": [],                         # folders to skip (path prefix / segment, relative to root or absolute)
+    "include": [],                         # if non-empty, ONLY process these folders
+    "folder_tags": {},                     # future: {folder: "STREAM-SUBJECT"} -> direct tag, no model
     "archive_root": "",                    # default destination for --move @archive
     "options": {
         "vision": True, "apply": False,
