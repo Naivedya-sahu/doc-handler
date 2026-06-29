@@ -20,3 +20,23 @@ def parse_progress(line):
             "done": int(kv.get("done", 0) or 0), "failed": int(kv.get("failed", 0) or 0),
             "tps": kv.get("tps", ""), "toks": kv.get("toks", ""),
             "eta": kv.get("eta", "").rstrip("s")}
+
+
+_MARKERS = {"->misc", "->skip", "FAIL"}
+
+
+def parse_result_row(line, streams, subjects):
+    """Parse a per-file result row into a dict, or None if the line isn't one.
+    Recognised by: first token is a known STREAM and second a known SUBJECT."""
+    toks = line.split()
+    if len(toks) < 6:
+        return None
+    st, su, ty, cf, src = toks[0], toks[1], toks[2], toks[3], toks[4]
+    if st not in streams or su not in subjects:
+        return None
+    rest = toks[5:]
+    skipped = "->skip" in rest
+    while rest and rest[-1] in _MARKERS:
+        rest.pop()
+    return {"stream": st, "subject": su, "type": ty, "conf": cf, "source": src,
+            "name": " ".join(rest), "tag": f"[{st}-{su}]", "skipped": skipped}
