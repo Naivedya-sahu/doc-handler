@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docsort — run view mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>
+  :root{
+    --surface-0:#1b1b27; --surface-1:#232334; --surface-2:#2a2a3d;
+    --border:rgba(255,255,255,.10); --border-strong:rgba(255,255,255,.18);
+    --text-primary:#e6e6ef; --text-secondary:#b8bccb; --text-muted:#9aa0b4;
+    --text-accent:#9d8bff; --bg-accent:rgba(124,92,255,.18);
+    --text-success:#3ddc84; --bg-success:rgba(61,220,132,.16);
+    --radius:8px; --font-sans:'Segoe UI',system-ui,sans-serif;
+  }
+  body{background:#14141d; margin:0; padding:24px; font-family:var(--font-sans);}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .ti-loader-2{display:inline-block; animation:spin 1s linear infinite}
+  @keyframes rise{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+  .row{animation:rise 380ms ease both}
+</style>
+</head>
+<body>
+<div style="max-width:700px; margin:0 auto; display:flex; gap:0; background:var(--surface-0); border:.5px solid var(--border); border-radius:12px; overflow:hidden; min-height:450px;">
+
+  <div style="width:148px; flex:none; background:var(--surface-1); border-right:.5px solid var(--border); padding:14px 10px; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; align-items:center; gap:8px; padding:4px 8px 12px;">
+      <div style="width:26px; height:26px; border-radius:8px; background:var(--bg-accent); display:flex; align-items:center; justify-content:center; color:var(--text-accent);"><i class="ti ti-folders"></i></div>
+      <span style="font-size:14px; font-weight:500; color:var(--text-primary);">docsort</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; background:var(--bg-accent); color:var(--text-accent); font-size:13px; font-weight:500;"><i class="ti ti-player-play"></i>Run</div>
+    <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:var(--text-secondary); font-size:13px;"><i class="ti ti-tag"></i>Tags</div>
+    <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:var(--text-secondary); font-size:13px;"><i class="ti ti-folder"></i>Folders</div>
+    <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:var(--text-secondary); font-size:13px;"><i class="ti ti-file-text"></i>Reports</div>
+    <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:var(--text-secondary); font-size:13px;"><i class="ti ti-chart-bar"></i>Stats</div>
+    <div style="margin-top:auto; display:flex; align-items:center; gap:8px; padding:8px 10px; font-size:12px; color:var(--text-muted);"><i class="ti ti-cpu"></i>qwen3-vl-4b</div>
+  </div>
+
+  <div style="flex:1; padding:18px 20px; display:flex; flex-direction:column; gap:14px; min-width:0;">
+
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <span style="font-size:12px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><i class="ti ti-folder" style="vertical-align:-2px; margin-right:5px;"></i>D:\Sort\Backup Home PC1\Documents</span>
+      <button style="display:flex; align-items:center; gap:6px; font-size:12px; flex:none; background:transparent; border:.5px solid var(--border-strong); color:var(--text-primary); border-radius:8px; padding:6px 10px; cursor:pointer;"><i class="ti ti-player-pause"></i>Stop</button>
+    </div>
+
+    <div style="background:var(--surface-2); border:.5px solid var(--border); border-radius:12px; padding:18px;">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:14px;">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <span style="font-size:42px; font-weight:500; line-height:1; color:var(--text-primary);">68<span style="font-size:22px; color:var(--text-secondary);">%</span></span>
+          <span style="font-size:13px; color:var(--text-muted);">file 34 / 50</span>
+        </div>
+        <div style="display:flex; gap:22px; text-align:right;">
+          <div><div style="font-size:11px; color:var(--text-muted);"><i class="ti ti-clock" style="vertical-align:-2px; margin-right:4px;"></i>elapsed</div><div style="font-size:18px; font-weight:500; color:var(--text-primary);">1:12</div></div>
+          <div><div style="font-size:11px; color:var(--text-muted);"><i class="ti ti-hourglass" style="vertical-align:-2px; margin-right:4px;"></i>remaining</div><div style="font-size:18px; font-weight:500; color:var(--text-accent);">~0:26</div></div>
+        </div>
+      </div>
+      <div style="height:10px; border-radius:6px; background:var(--surface-0); overflow:hidden;">
+        <div id="bar" style="height:100%; width:8%; border-radius:6px; background:var(--text-accent); transition:width 1000ms cubic-bezier(.22,.61,.36,1);"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:16px;">
+        <div style="background:var(--surface-1); border-radius:8px; padding:10px;"><div style="font-size:11px; color:var(--text-muted);">done</div><div style="font-size:20px; font-weight:500; color:var(--text-success);">33</div></div>
+        <div style="background:var(--surface-1); border-radius:8px; padding:10px;"><div style="font-size:11px; color:var(--text-muted);">skipped</div><div style="font-size:20px; font-weight:500; color:var(--text-primary);">5</div></div>
+        <div style="background:var(--surface-1); border-radius:8px; padding:10px;"><div style="font-size:11px; color:var(--text-muted);">failed</div><div style="font-size:20px; font-weight:500; color:var(--text-primary);">1</div></div>
+        <div style="background:var(--surface-1); border-radius:8px; padding:10px;"><div style="font-size:11px; color:var(--text-muted);">tok/s</div><div style="font-size:20px; font-weight:500; color:var(--text-primary);">41</div></div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface-2); border:.5px solid var(--border); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:11px;">
+      <i class="ti ti-loader-2" style="color:var(--text-accent); font-size:18px;"></i>
+      <span style="font-size:13px; color:var(--text-primary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">emag_unit3_waveguides.pdf</span>
+      <span style="font-size:11px; color:#9cc4f4; background:rgba(55,138,221,.18); padding:3px 9px; border-radius:6px; display:inline-flex; align-items:center; gap:5px;"><i class="ti ti-eye"></i>vision · pg 3</span>
+    </div>
+
+    <div style="background:var(--surface-2); border:.5px solid var(--border); border-radius:12px; padding:4px 14px; flex:1; min-height:96px; overflow:hidden;">
+      <div style="display:flex; flex-direction:column;">
+        <div class="row" style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:.5px solid var(--border);"><i class="ti ti-check" style="color:var(--text-success);"></i><span style="font-size:13px; color:var(--text-primary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">control_systems_bode_notes.pdf</span><span style="font-size:11px; color:var(--text-muted);">text</span><span style="font-size:11px; color:var(--text-accent); background:var(--bg-accent); padding:2px 8px; border-radius:6px;">CW-10CTRL</span></div>
+        <div class="row" style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:.5px solid var(--border);"><i class="ti ti-check" style="color:var(--text-success);"></i><span style="font-size:13px; color:var(--text-primary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">gate_2024_ec_paper.pdf</span><span style="font-size:11px; color:var(--text-muted);">text</span><span style="font-size:11px; color:var(--text-accent); background:var(--bg-accent); padding:2px 8px; border-radius:6px;">GATE-99UNS</span></div>
+        <div class="row" style="display:flex; align-items:center; gap:10px; padding:9px 0;"><i class="ti ti-check" style="color:var(--text-success);"></i><span style="font-size:13px; color:var(--text-primary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">sedra_smith_microelectronics.pdf</span><span style="font-size:11px; color:var(--text-muted);">vision</span><span style="font-size:11px; color:var(--text-accent); background:var(--bg-accent); padding:2px 8px; border-radius:6px;">REF-99UNS</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script>
+  setTimeout(function(){ var b=document.getElementById('bar'); if(b) b.style.width='68%'; },120);
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docsort — system tray mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>
+  :root{
+    --surface-0:#1b1b27; --surface-1:#232334; --surface-2:#2a2a3d;
+    --border:rgba(255,255,255,.10); --border-strong:rgba(255,255,255,.18);
+    --text-primary:#e6e6ef; --text-secondary:#b8bccb; --text-muted:#9aa0b4;
+    --text-accent:#9d8bff; --bg-accent:rgba(124,92,255,.18);
+    --text-success:#3ddc84; --bg-success:rgba(61,220,132,.16);
+    --radius:8px; --font-sans:'Segoe UI',system-ui,sans-serif;
+  }
+  body{background:#14141d; margin:0; padding:24px; font-family:var(--font-sans);}
+  button{background:transparent; border:.5px solid var(--border-strong); color:var(--text-primary); border-radius:8px; padding:6px 10px; cursor:pointer; font-family:inherit;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .ti-loader-2{display:inline-block; animation:spin 1s linear infinite}
+  @keyframes slidein{from{opacity:0; transform:translateX(10px)}to{opacity:1; transform:none}}
+  #toast{animation:slidein 420ms ease both}
+</style>
+</head>
+<body>
+<div style="max-width:360px; margin:0 auto; background:var(--surface-1); border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:16px; align-items:flex-end;">
+
+  <div style="width:300px; background:var(--surface-2); border:.5px solid var(--border-strong); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
+    <div style="display:flex; align-items:center; gap:9px;">
+      <div style="width:24px; height:24px; border-radius:7px; background:var(--bg-accent); display:flex; align-items:center; justify-content:center; color:var(--text-accent);"><i class="ti ti-folders"></i></div>
+      <span style="font-size:13px; font-weight:500; color:var(--text-primary); flex:1;">docsort · sorting</span>
+      <span style="font-size:13px; font-weight:500; color:var(--text-accent);">68%</span>
+    </div>
+    <div style="height:7px; border-radius:6px; background:var(--surface-0); overflow:hidden;">
+      <div id="tbar" style="height:100%; width:12%; border-radius:6px; background:var(--text-accent); transition:width 900ms cubic-bezier(.22,.61,.36,1);"></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <i class="ti ti-loader-2" style="color:var(--text-accent); font-size:15px;"></i>
+      <span style="font-size:12px; color:var(--text-secondary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">emag_unit3_waveguides.pdf</span>
+      <span style="font-size:10px; color:#9cc4f4; background:rgba(55,138,221,.18); padding:2px 7px; border-radius:5px;">vision</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); padding:2px 2px 0;">
+      <span><span style="color:var(--text-success); font-weight:500;">33</span> done</span>
+      <span><span style="color:var(--text-primary); font-weight:500;">5</span> skip</span>
+      <span><span style="color:var(--text-primary); font-weight:500;">1</span> fail</span>
+      <span><i class="ti ti-hourglass" style="vertical-align:-1px;"></i> ~0:26</span>
+    </div>
+    <div style="display:flex; gap:8px; border-top:.5px solid var(--border); padding-top:11px;">
+      <button style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px;"><i class="ti ti-window-maximize"></i>Open</button>
+      <button style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px;"><i class="ti ti-player-pause"></i>Pause</button>
+      <button style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px;"><i class="ti ti-player-stop"></i>Stop</button>
+    </div>
+  </div>
+
+  <div id="toast" style="width:300px; background:var(--surface-2); border:.5px solid var(--border); border-left:3px solid var(--text-success); border-radius:0 12px 12px 0; padding:13px 14px; display:flex; align-items:center; gap:11px;">
+    <div style="width:30px; height:30px; border-radius:50%; background:var(--bg-success); display:flex; align-items:center; justify-content:center; color:var(--text-success); flex:none;"><i class="ti ti-check"></i></div>
+    <div style="flex:1; min-width:0;">
+      <div style="font-size:13px; font-weight:500; color:var(--text-primary);">Run complete</div>
+      <div style="font-size:12px; color:var(--text-secondary);">48 tagged · 1 failed · in 1:38</div>
+    </div>
+    <button style="font-size:11px; flex:none;">Report</button>
+  </div>
+
+  <div style="width:100%; display:flex; align-items:center; justify-content:flex-end; gap:14px; border-top:.5px solid var(--border); padding-top:12px; color:var(--text-muted);">
+    <i class="ti ti-wifi"></i>
+    <i class="ti ti-volume"></i>
+    <div style="display:flex; align-items:center; gap:6px; color:var(--text-accent);"><div style="width:18px; height:18px; border-radius:5px; background:var(--bg-accent); display:flex; align-items:center; justify-content:center; font-size:12px;"><i class="ti ti-folders"></i></div></div>
+    <span style="font-size:12px; color:var(--text-secondary);">9:41 AM</span>
+  </div>
+
+</div>
+<script>
+  setTimeout(function(){ var b=document.getElementById('tbar'); if(b) b.style.width='68%'; },120);
+</script>
+</body>
+</html>
