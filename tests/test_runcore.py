@@ -73,3 +73,31 @@ def test_build_run_cmd_all_toggles():
 def test_build_run_cmd_model_auto_and_misc_default():
     cmd = runcore.build_run_cmd({"model": "auto", "misc": True}, python="PY", folder="F")
     assert "--model" not in cmd and "--no-misc" not in cmd
+
+
+import sys as _sys, time as _time
+
+
+def test_run_controller_emits_events():
+    emitter = ("import sys;"
+               "print('starting');"
+               "print('PROGRESS 1/2 done=1 failed=0 tps=10 toks=5 eta=3s');"
+               "print('CW 08DIG notes high text a.pdf');"
+               "print('MuPDF error: ignore me');"
+               "sys.stdout.flush()")
+    cmd = [_sys.executable, "-c", emitter]
+    events = []
+    streams = {"CW"}; subjects = {"08DIG"}
+    ctrl = runcore.RunController(streams, subjects, on_event=events.append)
+    ctrl.start(cmd, cwd=".")
+    for _ in range(100):                 # wait up to ~5s for the 'done' event
+        if any(e[0] == "done" for e in events):
+            break
+        _time.sleep(0.05)
+    kinds = [e[0] for e in events]
+    assert "progress" in kinds and "file" in kinds and "done" in kinds
+    prog = next(e[1] for e in events if e[0] == "progress")
+    assert prog["i"] == 1 and prog["n"] == 2
+    fil = next(e[1] for e in events if e[0] == "file")
+    assert fil["name"] == "a.pdf"
+    assert not any("MuPDF error" in (e[1] if isinstance(e[1], str) else "") for e in events)

@@ -67,3 +67,56 @@ def build_run_cmd(opts, python=None, folder=None):
     if fr and fr != "none":
         cmd += ["--frontier", fr]
     return cmd
+
+
+class RunController:
+    """Runs the docsort CLI as a subprocess in a background thread and emits
+    typed events to `on_event`: ('progress', dict) | ('file', dict) |
+    ('log', str) | ('done', None). Thread-safe stop via terminate()."""
+
+    def __init__(self, streams, subjects, on_event):
+        self.streams = set(streams)
+        self.subjects = set(subjects)
+        self.on_event = on_event
+        self.proc = None
+        self._thread = None
+
+    def start(self, cmd, cwd):
+        if self.proc:
+            return
+        self._thread = threading.Thread(target=self._run, args=(cmd, cwd), daemon=True)
+        self._thread.start()
+
+    def _run(self, cmd, cwd):
+        try:
+            self.proc = subprocess.Popen(
+                cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1)
+            for line in self.proc.stdout:
+                if "MuPDF error" in line:
+                    continue
+                s = line.rstrip("\n")
+                prog = parse_progress(s)
+                if prog is not None:
+                    self.on_event(("progress", prog)); continue
+                row = parse_result_row(s, self.streams, self.subjects)
+                if row is not None:
+                    self.on_event(("file", row)); continue
+                self.on_event(("log", line))
+            self.proc.wait()
+        except Exception as e:
+            self.on_event(("log", f"[gui] error: {e}\n"))
+        finally:
+            self.proc = None
+            self.on_event(("done", None))
+
+    def stop(self):
+        if self.proc:
+            try:
+                self.proc.terminate()
+            except Exception:
+                pass
+
+    @property
+    def running(self):
+        return self.proc is not None
