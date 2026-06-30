@@ -74,3 +74,12 @@ def test_run_view_takes_shared_toggles_and_has_no_inline_switches():
         "Run view should no longer render the 5 toggle switches inline — "
         "they moved to the Tags view"
     )
+
+
+def test_tags_view_renders_the_shared_toggle_objects():
+    page = _stub_page()
+    toggles = gui._build_toggles()
+    view = gui._tags_view(page, toggles)
+    found = list(_walk(view))
+    for key, switch in toggles.items():
+        assert any(c is switch for c in found), f"toggle '{key}' not found in Tags view tree"

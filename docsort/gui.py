@@ -369,7 +369,7 @@ def _run_view(page: "ft.Page", toggles: dict) -> "ft.Control":
 # Tags view (structured editor over tagsio)
 # ---------------------------------------------------------------------------
 
-def _tags_view(page: "ft.Page") -> "ft.Control":
+def _tags_view(page: "ft.Page", toggles: dict) -> "ft.Control":
     path = config.tags_path()
     text = open(path, encoding="utf-8").read()
     palette = {"STREAMS": ACCENT, "SUBJECTS": "#5b8cff", "TYPES": OK}
@@ -424,9 +424,15 @@ def _tags_view(page: "ft.Page") -> "ft.Control":
             status.value, status.color = f"save failed: {e}", FAIL
         page.update()
 
+    toggle_row = ft.Row(
+        [toggles["vision"], toggles["apply"], toggles["copy"], toggles["misc"], toggles["skip"]],
+        wrap=True,
+    )
     return ft.Column(
         [ft.Text("First token on each line = the code.", color=MUTED, size=12),
          col_row,
+         ft.Text("Run options", color=MUTED, size=12),
+         toggle_row,
          ft.Row([ft.FilledButton("Save", on_click=save, style=ft.ButtonStyle(bgcolor=ACCENT)), status])],
         spacing=12, expand=True)
 
