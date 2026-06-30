@@ -71,10 +71,14 @@ tests/test_core.py, tests/test_runcore.py
 run_gui.py, run_cli.py             # PyInstaller/flet-pack entry points (repo root)
 build-exe.bat                      # local exe build
 .github/workflows/ci.yml, release.yml
-docs/MODEL-GUIDE.md  docs/ROADMAP.md
+docs/   — GUIDE.md CHANGELOG.md HANDOFF.md TROUBLESHOOTING.md MODEL-GUIDE.md ROADMAP.md
 docs/archive/  — design notes (council, taxonomy-generator, gui-vision), the spec + build plan, html mockups
-README.md GUIDE.md CHANGELOG.md TROUBLESHOOTING.md LICENSE pyproject.toml run.bat
+ROOT (only):  README.md  LICENSE  pyproject.toml  MANIFEST.in  requirements.txt  run.bat  build-exe.bat  run_cli.py  run_gui.py  docsort.ico
 ```
+> Doc layout: only `README.md` lives at the repo root; all other docs are under `docs/`. `.git`, `.github`,
+> `.venv`, `.planning`, `.claude`, `.pytest_cache`, and `docsort.egg-info` carry the Windows hidden attribute
+> (cosmetic; reverse with `attrib -h <name>`). Build artifacts (`build/`, `dist/`, `*.spec`, `__pycache__`)
+> are gitignored and regenerable.
 
 ### Classification tiers (`classify()`), trust high→low
 `TEXT` (first pages) → `ESCALATE` (re-read up to 5 pages on `99UNS`, `source=text5`) → `VISION` (render
