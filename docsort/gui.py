@@ -84,6 +84,34 @@ def _metric(label: str, value_ctrl: "ft.Text") -> "ft.Container":
     )
 
 
+# NOTE: not yet wired into _run_view/_tags_view — see Task 2 of the GUI consolidation plan.
+def _build_toggles() -> dict:
+    """The 5 run-option switches, built once and shared between the Run view
+    (reads .value to build CLI opts) and the Tags view (renders them) so a
+    toggle flipped in Tags affects the very next Run."""
+    return {
+        "vision": ft.Switch(label="Vision", value=False),
+        "apply": ft.Switch(label="Apply (rename)", value=False),
+        "copy": ft.Switch(label="Work on a copy", value=False),
+        "misc": ft.Switch(label="Move 99UNS → misc", value=False),
+        "skip": ft.Switch(label="Skip unknown", value=True),
+    }
+
+
+def _build_opts(host: "ft.TextField", model: "ft.Dropdown", toggles: dict, frontier: "ft.Dropdown") -> dict:
+    """Assemble the docsort CLI opts dict from the Run/Tags controls."""
+    return {
+        "host": host.value.strip(),
+        "model": model.value,
+        "vision": toggles["vision"].value,
+        "apply": toggles["apply"].value,
+        "copy": toggles["copy"].value,
+        "misc": toggles["misc"].value,
+        "skip_unknown": toggles["skip"].value,
+        "frontier": frontier.value,
+    }
+
+
 def _run_view(page: "ft.Page") -> "ft.Control":
     """Build the Run view: controls, progress hero, counters, live feed."""
     streams, subjects, _types = load_tags(config.tags_path())
@@ -111,6 +139,7 @@ def _run_view(page: "ft.Page") -> "ft.Control":
     frontier = ft.Dropdown(label="Frontier", width=160, value="none",
                            options=[ft.dropdown.Option(key="none", text="none"),
                                     ft.dropdown.Option(key="claude", text="claude")])
+    # TODO(task-2): replace with shared _build_toggles() — see docs/superpowers/plans/2026-07-01-gui-stats-consolidation.md
     t_vision = ft.Switch(label="Vision", value=False)
     t_apply = ft.Switch(label="Apply (rename)", value=False)
     t_copy = ft.Switch(label="Work on a copy", value=False)
