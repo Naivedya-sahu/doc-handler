@@ -68,7 +68,7 @@ docsort/
   config.py          # DEFAULTS, per-user dir seeding, host/location/model resolution
   data/              # bundled templates (TAGS.md, system_prompt.md, config.example.json)
 tests/test_core.py, tests/test_runcore.py
-scripts/run_gui.py, run_cli.py     # PyInstaller/flet-pack entry points
+run_gui.py, run_cli.py             # PyInstaller/flet-pack entry points (repo root)
 build-exe.bat                      # local exe build
 .github/workflows/ci.yml, release.yml
 docs/MODEL-GUIDE.md  docs/ROADMAP.md

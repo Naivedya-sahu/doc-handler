@@ -16,12 +16,12 @@ echo.
 echo === Building GUI exe (flet pack, v%VER%) ===
 REM --add-data bundles docsort/data (TAGS.md, prompt, config template);
 REM --paths=. lets PyInstaller find the docsort package even on an editable install.
-"%FLET%" pack scripts\run_gui.py --name docsort-gui --product-name docsort --product-version %VER% -y --add-data "docsort\data;docsort\data" --pyinstaller-build-args=--paths=.
+"%FLET%" pack run_gui.py --name docsort-gui --product-name docsort --product-version %VER% -y --add-data "docsort\data;docsort\data" --pyinstaller-build-args=--paths=.
 if errorlevel 1 goto :err
 
 echo.
 echo === Building CLI exe (PyInstaller) ===
-"%PY%" -m PyInstaller --onefile --console --name docsort --collect-all docsort scripts\run_cli.py
+"%PY%" -m PyInstaller --onefile --console --name docsort --collect-all docsort run_cli.py
 if errorlevel 1 goto :err
 
 echo.
