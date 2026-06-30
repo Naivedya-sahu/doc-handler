@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+import threading
 
 try:
     import flet as ft
@@ -77,16 +78,17 @@ def _feed_row(p: dict) -> "ft.Control":
 
 
 def _pick_folder(page: "ft.Page", field: "ft.TextField") -> None:
-    """Open a native directory picker and write the chosen path into *field*."""
-    def on_result(e: "ft.FilePickerResultEvent") -> None:
-        if getattr(e, "path", None):
-            field.value = e.path
+    """Open a native directory picker (async in Flet 0.85+) and write the path into *field*."""
+    async def _go() -> None:
+        fp = ft.FilePicker()
+        page.overlay.append(fp)
+        page.update()
+        path = await fp.get_directory_path()
+        if path:
+            field.value = path
             page.update()
 
-    fp = ft.FilePicker(on_result=on_result)
-    page.overlay.append(fp)
-    page.update()
-    fp.get_directory_path()
+    page.run_task(_go)
 
 
 def _metric(label: str, value_ctrl: "ft.Text") -> "ft.Container":
@@ -139,7 +141,17 @@ def _run_view(page: "ft.Page") -> "ft.Control":
         log.controls.append(ft.Text(str(text).rstrip("\n"), color=color, size=11,
                                     font_family="Consolas", selectable=True))
 
-    state = {"t0": None, "skipped": 0}
+    state = {"t0": None, "skipped": 0, "active": False}
+
+    def _tick_once():
+        if state["t0"]:
+            elapsed.value = _fmt_mmss(time.time() - state["t0"])
+            page.update()
+
+    def _ticker():
+        while state.get("active"):
+            page.run_thread(_tick_once)
+            time.sleep(1)
 
     # ---- model refresh ----
     def do_refresh(_e=None) -> None:
@@ -186,6 +198,7 @@ def _run_view(page: "ft.Page") -> "ft.Control":
                 status.color = OK
                 run_btn.disabled = False
                 stop_btn.disabled = True
+                state["active"] = False
                 if state["t0"]:
                     elapsed.value = _fmt_mmss(time.time() - state["t0"])
                 log_line("[done]", color=OK)
@@ -211,6 +224,7 @@ def _run_view(page: "ft.Page") -> "ft.Control":
         log.controls.clear()
         state["t0"] = time.time()
         state["skipped"] = 0
+        state["active"] = True
         pct.value = "0%"
         of_n.value = "file 0 / 0"
         bar.value = 0.0
@@ -224,6 +238,7 @@ def _run_view(page: "ft.Page") -> "ft.Control":
         stop_btn.disabled = False
         page.update()
         ctrl.start(cmd, cwd=PKG_PARENT)
+        threading.Thread(target=_ticker, daemon=True).start()
 
     run_btn = ft.FilledButton("Run", icon=ft.Icons.PLAY_ARROW, on_click=start_run,
                               style=ft.ButtonStyle(bgcolor=ACCENT))
@@ -384,15 +399,16 @@ def _folders_view(page: "ft.Page") -> "ft.Control":
                     spacing=4))
 
         def add(_e):
-            def on_result(ev):
-                if getattr(ev, "path", None):
-                    items.append(ev.path)
+            async def _go():
+                fp = ft.FilePicker()
+                page.overlay.append(fp)
+                page.update()
+                path = await fp.get_directory_path()
+                if path:
+                    items.append(path)
                     render()
                     page.update()
-            fp = ft.FilePicker(on_result=on_result)
-            page.overlay.append(fp)
-            page.update()
-            fp.get_directory_path()
+            page.run_task(_go)
 
         render()
         box = ft.Container(
