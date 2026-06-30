@@ -3,7 +3,7 @@
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![offline](https://img.shields.io/badge/local%20pass-100%25%20offline-orange)
-![ui](https://img.shields.io/badge/UI-CLI%20%2B%20dark%20GUI-7c5cff)
+![ui](https://img.shields.io/badge/UI-CLI%20%2B%20Flet%20GUI-7c5cff)
 
 Local-LLM document tagger + sorter. Reads each academic document, classifies it into
 a **STREAM** (CW / GATE / PROJ / RES / REC / REF) and a **SUBJECT** (your EE topic list),
@@ -11,8 +11,8 @@ stamps a `[STREAM-SUBJECT]` filename prefix, then moves files into a clean tree.
 
 The whole classification pass runs **locally and free** against [LM Studio](https://lmstudio.ai).
 A frontier model (Claude Code, on your subscription) is an **optional** fallback for the few
-genuinely-ambiguous files. Ships with both a **CLI** (`docsort`) and a **modern dark GUI**
-(`docsort-gui`).
+genuinely-ambiguous files. Ships with both a **CLI** (`docsort`) and a **modern dark Flet GUI**
+(`docsort-gui`) — a nav rail with Run / Tags / Folders / Reports / Stats.
 
 ---
 
@@ -29,8 +29,8 @@ git clone https://github.com/Naivedya-sahu/docsort.git
 cd docsort
 python -m venv .venv
 .venv\Scripts\activate
-pip install .            # or: pip install -e .   (editable, for hacking)
-pip install ".[all]"     # add .doc/.docx/.pptx readers (python-docx, python-pptx, pywin32)
+pip install ".[gui]"     # engine + the Flet GUI  (plain "pip install ." = CLI only)
+pip install ".[all]"     # also .doc/.docx/.pptx readers + GUI (python-docx, python-pptx, pywin32, flet)
 ```
 
 This installs two commands:
@@ -38,7 +38,7 @@ This installs two commands:
 | Command | What |
 |---|---|
 | `docsort` | the CLI tagger / mover |
-| `docsort-gui` | the dark folder-picker GUI |
+| `docsort-gui` | the Flet GUI (needs the `[gui]` extra) |
 
 If your Python's `Scripts\` dir is on PATH, both work in **any** cmd/PowerShell window with no venv.
 Otherwise call them as `python -m docsort.cli ...` / `python -m docsort.gui`.
@@ -61,8 +61,9 @@ No-install option: from the cloned folder just run `run.bat` (GUI) or `run.bat "
 docsort-gui        # or: run.bat
 ```
 Browse to a folder, leave **Create copy folder** ticked (works on a copy, originals safe),
-hit **Run** for a dry-run, review the log, then tick **Apply** and Run again. **Edit Tags**
-opens your tag list in-app.
+hit **Run** for a dry-run, review the feed/report, then either tick **Apply** and Run again, or click
+**Apply audited** to replay the dry-run's decisions as renames with no model calls. The **Tags** rail
+section edits your tag list in-app.
 
 **CLI**:
 ```bash
@@ -177,8 +178,10 @@ Run dedup FIRST so the model never reads duplicate copies.
 ## Files
 | Path | What |
 |---|---|
-| `docsort/cli.py` | the tagger + mover (CLI, `docsort`) |
-| `docsort/gui.py` | the dark GUI (`docsort-gui`) |
+| `docsort/cli.py` | the engine — tiers, backends, journal, all flags (CLI, `docsort`) |
+| `docsort/gui.py` | the Flet GUI (`docsort-gui`); drives the CLI via subprocess |
+| `docsort/runcore.py` | UI-agnostic run core — `PROGRESS`/row parsing, command builder, threaded `RunController` |
+| `docsort/tagsio.py` | `TAGS.md` block read/rewrite (used by the GUI tag editor) |
 | `docsort/config.py` | config + per-user file resolution |
 | `docsort/data/` | bundled templates: `TAGS.md`, `system_prompt.md`, `config.example.json` |
 | `run.bat` | cmd/PowerShell launcher (uses repo `.venv`) |

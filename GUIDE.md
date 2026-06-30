@@ -42,7 +42,9 @@ Trust order: `text > text5 > vision > vision3 > frontier > filename` (the `sourc
                  docsort --location academics --move @archive --apply
 6. SPECIAL       handle <archive>/{GATE,PROJ,RES,REC} folders separately
 ```
-GUI equivalent: `docsort-gui` (or `run.bat`) — folder picker + the same toggles.
+GUI equivalent: `docsort-gui` — a Flet app with a nav rail (Run / Tags / Folders / Reports / Stats),
+the same toggles, live progress + per-file feed + verbose log, and an **Apply audited** button that runs
+`--apply-journal` (rename the reviewed dry-run results without re-classifying).
 
 ## 5. Flags
 | Flag | Purpose |
@@ -63,6 +65,7 @@ GUI equivalent: `docsort-gui` (or `run.bat`) — folder picker + the same toggle
 | `--resume` | skip files already `done` in the run journal (after a pause/crash) |
 | `--retry-failed` | re-process only files marked `failed` in the journal |
 | `--undo` | reverse the renames/moves recorded in the journal (restore originals) |
+| `--apply-journal` | apply a prior dry-run's audited decisions from the journal (rename/move only, **no model calls**); skips files changed since the audit. The fast counterpart to `--apply` after you've reviewed a dry-run |
 | `--exclude PATH` / `--include PATH` | skip / restrict-to folders (repeatable; also config `exclude`/`include`) |
 | `--report` | (re)build `DOCSORT-REPORT.md` from the journal + update the global index (offline) |
 | `--stats` | print lifetime totals from `%APPDATA%/docsort/index.jsonl`, then exit |
@@ -107,4 +110,4 @@ hint instead of mislabeling the rest `99UNS`. Each run also emits `PROGRESS i/N 
 | `.docx/.pptx` skipped | `pip install "docsort[office]"` |
 | `.doc` filename-only | needs Word + `pip install "docsort[doc]"` (pywin32), or convert .doc→.docx |
 | frontier claude empty / not found | install Claude Code, run `claude` once to log in; it uses `--model haiku` |
-| GUI won't start | needs Tkinter (ships with standard CPython on Windows; on Linux `apt install python3-tk`) |
+| GUI won't start | needs the `[gui]` extra (Flet): `pip install "docsort[gui]"`. The prebuilt `docsort-gui.exe` already bundles it. |
