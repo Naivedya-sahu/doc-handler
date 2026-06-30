@@ -10,5 +10,5 @@ and the future system-tray presence). Open them in any browser.
 | `system-tray.html` | The future background-processing concept — a Windows tray flyout with live progress + quick Open/Pause/Stop, and the completion toast. (Roadmap item, not v0.11.0.) |
 
 The colours/fonts here are standalone fallbacks for browser viewing; the real app uses the Flet dark theme
-defined in `docsort/gui.py`. Design intent lives in [`../gui-vision.md`](../gui-vision.md); the build plan
-is [`../../superpowers/plans/2026-06-29-v0.11.0-gui-visual-overhaul.md`](../../superpowers/plans/2026-06-29-v0.11.0-gui-visual-overhaul.md).
+defined in `docsort/gui.py`. Design intent lives in [`gui-vision.md`](gui-vision.md); the build plan
+is [`gui-visual-overhaul-plan.md`](gui-visual-overhaul-plan.md).

@@ -71,8 +71,8 @@ tests/test_core.py, tests/test_runcore.py
 scripts/run_gui.py, run_cli.py     # PyInstaller/flet-pack entry points
 build-exe.bat                      # local exe build
 .github/workflows/ci.yml, release.yml
-docs/MODEL-GUIDE.md  docs/ROADMAP.md  docs/design/{council,taxonomy-generator,gui-vision}.md
-docs/design/mockups/{run-view,system-tray}.html   docs/superpowers/plans/2026-06-29-v0.11.0-gui-visual-overhaul.md
+docs/MODEL-GUIDE.md  docs/ROADMAP.md
+docs/archive/  — design notes (council, taxonomy-generator, gui-vision), the spec + build plan, html mockups
 README.md GUIDE.md CHANGELOG.md TROUBLESHOOTING.md LICENSE pyproject.toml run.bat
 ```
 
@@ -152,13 +152,13 @@ Git: `main` pushed to origin at the v0.12.0 merge; tag `v0.12.0` released with b
 **Separate project (not docsort):**
 - **LLM Council** — universal API endpoints + a controller model managing other models ("poor man's MoE").
   In development by the user; docsort will consume its endpoint as a future `99UNS` tier once integration is
-  defined. Design note: `docs/design/council.md`. Do NOT build inside docsort.
+  defined. Design note: `docs/archive/council.md`. Do NOT build inside docsort.
 
 **Planned features:**
 - **Taxonomy Generator** (designed, deferred) — interactive wizard: a user's folder tree → generated
   `TAGS.md` / `system_prompt.md` via a small CPU-capable LM Studio text model; de-personalizes the taxonomy
-  (public blocker #2). Wizard plugs into the Flet shell. Design: `docs/design/taxonomy-generator.md`.
-- **Background processing + system tray** — run minimized / tray flyout (mockup: `docs/design/mockups/system-tray.html`).
+  (public blocker #2). Wizard plugs into the Flet shell. Design: `docs/archive/taxonomy-generator.md`.
+- **Background processing + system tray** — run minimized / tray flyout (mockup: `docs/archive/system-tray.html`).
 - **Single unified Windows package** as the release artifact (vs. two exes).
 - **GUI config persistence** (Host/Model/toggles between launches), **transient single-retry** (one retry on
   an empty model reply before `99UNS`), **in-process engine boundary** (replace subprocess + line parsing).
@@ -211,10 +211,10 @@ Generator; (3) effectively Windows-only; (4) unsigned exe (SmartScreen).
 ### Start here (next session)
 Likely next moves, in priority order:
 (a) **Taxonomy Generator** — the designed-but-unbuilt wizard (de-personalization, public blocker #2); design
-    is ready in `docs/design/taxonomy-generator.md`.
+    is ready in `docs/archive/taxonomy-generator.md`.
 (b) **Accuracy benchmark** on 50–100 hand-labelled real files (the #1 public blocker) via the auto
     `DOCSORT-REPORT.md`.
 (c) **GUI polish/debt** — config persistence, background processing + system tray, single Windows package.
 (d) **Council integration** — only once the user shares the council project's endpoint.
 The v0.11.0 GUI build plan (full task list, still a useful reference for Flet patterns) lives in
-`docs/superpowers/plans/2026-06-29-v0.11.0-gui-visual-overhaul.md`.
+`docs/archive/gui-visual-overhaul-plan.md`.

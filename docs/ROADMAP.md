@@ -34,7 +34,7 @@ Full historical state lives in [`HANDOFF.md`](../HANDOFF.md); per-release detail
 - **Taxonomy Generator** — interactive wizard: tree → generated `TAGS.md` / `system_prompt.md`, on a small
   CPU-capable text model via LM Studio. De-personalizes the taxonomy (public blocker #2). Designed and
   deferred; its wizard dialog plugs into the Flet shell. See
-  [`design/taxonomy-generator.md`](design/taxonomy-generator.md).
+  [`archive/taxonomy-generator.md`](archive/taxonomy-generator.md).
 - **Engine debt** — transient single-retry (one retry on an empty model reply before `99UNS`), GUI config
   persistence (Host/Model fields), and the in-process engine boundary (replace subprocess + line parsing).
 
@@ -43,7 +43,7 @@ Full historical state lives in [`HANDOFF.md`](../HANDOFF.md); per-release detail
 - **LLM Council** — universal API endpoints + central controller model managing other models
   ("poor man's MoE", accuracy over speed). A standalone project in development; docsort will consume its
   endpoint as a future `99UNS` escalation tier once integration is defined. See
-  [`design/council.md`](design/council.md).
+  [`archive/council.md`](archive/council.md).
 
 ## Public-release blockers (tracking)
 
