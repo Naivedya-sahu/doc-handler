@@ -82,3 +82,33 @@ def test_report_and_undo(tmp_path, monkeypatch):
     cli.undo(d)
     assert os.path.exists(os.path.join(d, "a.pdf"))       # rename reversed
     assert os.path.exists(os.path.join(d, "b.pdf"))       # misc move reversed
+
+
+def test_apply_journal(tmp_path, monkeypatch):
+    """--apply-journal replays a dry-run's recorded decisions as renames, with
+    no model calls; files changed since the audit (mtime mismatch) are skipped."""
+    monkeypatch.setenv("APPDATA", str(tmp_path))          # isolate the global index
+    d = tmp_path / "run"; d.mkdir()
+    f_ok = d / "a.pdf"; f_ok.write_text("x", encoding="utf-8")
+    f_stale = d / "b.pdf"; f_stale.write_text("y", encoding="utf-8")
+    f_unk = d / "c.pdf"; f_unk.write_text("z", encoding="utf-8")
+    mt_ok = int(os.path.getmtime(f_ok))
+    mt_unk = int(os.path.getmtime(f_unk))
+    rows = [
+        {"rel": "a.pdf", "name": "a.pdf", "mtime": mt_ok, "status": "done", "stream": "CW",
+         "subject": "08DIG", "type": "notes", "conf": "high", "source": "text", "dst": "a.pdf", "error": ""},
+        {"rel": "b.pdf", "name": "b.pdf", "mtime": 1, "status": "done", "stream": "CW",          # mtime mismatch
+         "subject": "10CTRL", "type": "notes", "conf": "high", "source": "text", "dst": "b.pdf", "error": ""},
+        {"rel": "c.pdf", "name": "c.pdf", "mtime": mt_unk, "status": "done", "stream": "CW",
+         "subject": "99UNS", "type": "misc", "conf": "low", "source": "vision", "dst": "c.pdf", "error": ""},
+    ]
+    with open(d / "_docsort_state.jsonl", "w", encoding="utf-8") as f:
+        for r in rows: f.write(json.dumps(r) + "\n")
+
+    cli.apply_journal(str(d), misc=True, skip_unknown=False)
+
+    assert (d / "[CW-08DIG] a.pdf").exists()              # applied from journal
+    assert not (d / "a.pdf").exists()
+    assert (d / "b.pdf").exists()                         # stale (mtime) -> untouched
+    assert not (d / "[CW-10CTRL] b.pdf").exists()
+    assert (d / "misc" / "[CW-99UNS] c.pdf").exists()     # 99UNS swept to misc (misc=True)

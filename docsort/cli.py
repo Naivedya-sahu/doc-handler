@@ -381,6 +381,55 @@ def undo(root):
             except Exception as e: print("  undo-fail:",dst,e)
     print(f"undo: restored {n} files in {root}")
 
+def apply_journal(root, misc=True, skip_unknown=False):
+    """Fast apply: replay a prior (dry-run) audit's recorded decisions as
+    renames/moves, calling NO model. Reconstructs `[STREAM-SUBJECT] name` from
+    the journal. Files whose mtime changed since the audit are skipped (their
+    decision may be stale). Writes fresh journal rows so --undo still works."""
+    rows=_journal_rows(root)
+    if not rows: print("no journal at",root,"— run a dry-run first to audit"); return 0
+    jf=open(os.path.join(root,"_docsort_state.jsonl"),"a",encoding="utf-8")
+    applied=0; skipped=0; missing=0; stale=[]
+    for r in rows:
+        rel=r.get("rel"); st=r.get("stream"); su=r.get("subject")
+        if not rel or not st or not su or r.get("status")=="failed":
+            continue
+        full=os.path.join(root,rel)
+        if not os.path.exists(full):
+            missing+=1; continue                          # already moved/renamed, or gone
+        try: mt=int(os.path.getmtime(full))
+        except Exception: mt=0
+        if mt!=int(r.get("mtime",0) or 0):
+            stale.append(rel); continue                   # changed since audit — don't apply a stale decision
+        base=r.get("name") or os.path.basename(rel)
+        dp=os.path.dirname(full); status="done"; err=""; cur=full
+        if skip_unknown and su=="99UNS":
+            jf.write(json.dumps({"rel":rel,"name":base,"mtime":mt,"status":"skipped","stream":st,
+                                 "subject":su,"type":r.get("type"),"conf":r.get("conf"),
+                                 "source":"journal","dst":rel,"error":"","ts":int(time.time())})+"\n")
+            skipped+=1; continue
+        new=f"[{st}-{su}] {base}"
+        if new!=base:
+            nt=unique_path(os.path.join(dp,new))
+            try: os.rename(full,nt); cur=nt
+            except Exception as e: print("  rename-fail:",e); status="failed"; err="rename:"+str(e)[:160]
+        if misc and su=="99UNS" and status=="done":
+            try: cur=move_to_misc(root,cur)
+            except Exception as e: print("  misc-move-fail:",e)
+        applied+=(status=="done")
+        jf.write(json.dumps({"rel":rel,"name":base,"mtime":mt,"status":status,"stream":st,
+                             "subject":su,"type":r.get("type"),"conf":r.get("conf"),
+                             "source":"journal","dst":os.path.relpath(cur,root),
+                             "error":err,"ts":int(time.time())})+"\n"); jf.flush()
+    jf.close()
+    print(f"apply-journal: {applied} renamed · {skipped} skipped(unknown) · "
+          f"{missing} not-found · {len(stale)} stale(changed)")
+    if stale:
+        print("  stale — changed since the audit; re-run a dry-run on these:")
+        for s in stale[:50]: print("   -",s)
+    report(root)
+    return applied
+
 def stats():
     """Lifetime totals from the global index."""
     import collections
@@ -428,6 +477,8 @@ def add_args(ap):
     ap.add_argument("--review",action="store_true",help="aggregate the run log into TAG-REVIEW.md (offline)")
     ap.add_argument("--report",action="store_true",help="(re)build DOCSORT-REPORT.md from the journal + update global index (offline)")
     ap.add_argument("--undo",action="store_true",help="reverse the renames/moves recorded in the journal")
+    ap.add_argument("--apply-journal",dest="apply_journal",action="store_true",
+                    help="apply a prior dry-run's audited decisions from the journal (rename/move only, no model calls)")
     ap.add_argument("--stats",action="store_true",help="print lifetime stats from the global index, then exit")
     ap.add_argument("--retry-failed",dest="retry_failed",action="store_true",help="re-process only files marked 'failed' in the journal")
     ap.add_argument("--retag",action="store_true",help="re-classify already-prefixed files (after tuning/promoting a proposal)")
@@ -461,6 +512,8 @@ def main(argv=None):
     a.root=root
     if a.report: report(a.root); return                      # offline
     if a.undo: undo(a.root); return                          # offline
+    if a.apply_journal:                                      # offline: replay audited decisions, no model
+        apply_journal(a.root, misc=bool(a.misc), skip_unknown=bool(a.skip_unknown)); return
     if a.review: setup(a); review(a.root,a.log); return     # offline; no model server needed
     if a.move=="@archive":
         dest=cfg.get("archive_root")

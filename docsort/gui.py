@@ -204,6 +204,7 @@ def _run_view(page: "ft.Page") -> "ft.Control":
                 status.value = "done"
                 status.color = OK
                 run_btn.disabled = False
+                apply_btn.disabled = False
                 stop_btn.disabled = True
                 state["active"] = False
                 if state["t0"]:
@@ -242,6 +243,7 @@ def _run_view(page: "ft.Page") -> "ft.Control":
         status.value = "running…"
         status.color = ACCENT
         run_btn.disabled = True
+        apply_btn.disabled = True
         stop_btn.disabled = False
         page.update()
         ctrl.start(cmd, cwd=PKG_PARENT)
@@ -251,6 +253,29 @@ def _run_view(page: "ft.Page") -> "ft.Control":
                               style=ft.ButtonStyle(bgcolor=ACCENT))
     stop_btn = ft.OutlinedButton("Stop", icon=ft.Icons.STOP, disabled=True,
                                  on_click=lambda _e: ctrl.stop())
+
+    def apply_audited(_e):
+        f = folder.value.strip()
+        if not os.path.isdir(f):
+            status.value = f"not a folder: {f}"; status.color = FAIL; page.update(); return
+        cmd = [sys.executable, "-m", "docsort.cli", f, "--apply-journal"]
+        if not t_misc.value:
+            cmd.append("--no-misc")
+        if t_skip.value:
+            cmd.append("--skip-unknown")
+        feed.controls.clear()
+        log.controls.clear()
+        status.value = "applying audited results…"
+        status.color = ACCENT
+        run_btn.disabled = True
+        apply_btn.disabled = True
+        stop_btn.disabled = False
+        page.update()
+        ctrl.start(cmd, cwd=PKG_PARENT)
+
+    apply_btn = ft.OutlinedButton("Apply audited", icon=ft.Icons.CHECK_CIRCLE,
+                                  tooltip="Rename using the last dry-run's results — no model calls",
+                                  on_click=apply_audited)
 
     # ---- layout ----
     hero = ft.Container(
@@ -287,7 +312,7 @@ def _run_view(page: "ft.Page") -> "ft.Control":
             ft.Row([folder, browse]),
             ft.Row([host, model, refresh, frontier], wrap=True, vertical_alignment=ft.CrossAxisAlignment.END),
             ft.Row([t_vision, t_apply, t_copy, t_misc, t_skip], wrap=True),
-            ft.Row([run_btn, stop_btn, status]),
+            ft.Row([run_btn, apply_btn, stop_btn, status]),
         ],
         spacing=10,
     )
