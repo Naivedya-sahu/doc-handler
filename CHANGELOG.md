@@ -2,6 +2,15 @@
 
 All notable changes. Newest on top.
 
+## [0.12.0] — 2026-06-30
+### Added
+- **`--apply-journal` (fast apply)** — replay a prior dry-run's audited decisions from
+  `_docsort_state.jsonl` as renames/moves, calling **no model** (the counterpart to `--undo`).
+  Reconstructs `[STREAM-SUBJECT] name` from the journal; honors `--misc` / `--skip-unknown`; **skips
+  files whose mtime changed since the audit** (listed as stale). Writes fresh journal rows so `--undo`
+  still works. After a dry-run → review, applying is near-instant instead of re-classifying from scratch.
+- **GUI "Apply audited" button** (Run view) — runs `--apply-journal` on the selected folder.
+
 ## [0.11.1] — 2026-06-30
 ### Fixed
 - **Folder picker** — in Flet 0.85 `FilePicker` is a *service*; it was added to `page.overlay`, so its

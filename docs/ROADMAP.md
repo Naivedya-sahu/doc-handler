@@ -13,39 +13,19 @@ Full historical state lives in [`HANDOFF.md`](../HANDOFF.md); per-release detail
 | 0.10.0 | Exclude/include, reports + lifetime stats, `--undo`, `--retry-failed`, structured tag editor, MODEL-GUIDE, tests, exe release. |
 | 0.10.1 | `--skip-unknown` toggle (leave `99UNS` untouched). |
 | 0.10.2 | **Docs only** — design notes (council, taxonomy generator, GUI vision), this roadmap, source-path update. No code changes. |
+| 0.11.0 | **GUI rebuilt on Flet** — nav rail + Run view (progress/time/ETA/counters/feed/log) + Tags/Folders/Reports/Stats. New `runcore.py` + `tagsio.py`. Engine unchanged. |
+| 0.11.1 | GUI hotfixes — FilePicker as a Flet service (picker timeout), dropdown labels, threaded model refresh; exe bundling fix (`flet pack` + `--add-data`/`--paths`). |
+| 0.12.0 | **`--apply-journal` (fast apply)** — replay a dry-run's journal decisions as renames, no model calls; + GUI "Apply audited" button. |
 
-## Planned — v0.11.0 (visual overhaul only)
+## Next — low priority
 
-In planning. The next version is a **pure visual/UX overhaul** of the GUI on **Flet** (Python) — a
-Discord-like dark look with small minimal animations, tuned to keep the user engaged through long
-patience-heavy runs, surfacing progress + time/ETA + throughput + per-file indicators prominently. **No
-engine or behaviour changes**; the Flet UI drives the existing CLI via subprocess. See
-[`design/gui-vision.md`](design/gui-vision.md).
-
-## Next — v0.11.1 (engine focus + GUI hotfixes)
-
-Patch release after the v0.11.0 Flet GUI merge. **Main focus is engine work.**
-
-Engine (headline):
-- **Apply-from-journal (fast apply)** — reuse a prior dry-run's `_docsort_state.jsonl` decisions to perform
-  only the renames/moves, calling the model **zero times** (the inverse of `--undo`). Today an `--apply` run
-  re-classifies from scratch, so applying audited dry-run results costs the same as the dry-run itself. New
-  `--apply-journal` flag + a GUI "Apply audited results" action. Matches the dry-run → review → apply workflow.
-
-GUI hotfixes (found during v0.11.0 testing — none are crashes):
-- **Dropdown labels** — model options set a `key` but no display `text`, so option labels can render blank in
-  Flet 0.85. Fix: set `text=key` when building options.
-- **Blocking model refresh** — `available_models()` runs on the UI thread (model-refresh button / host blur),
-  so a slow or absent host briefly freezes the window. Fix: run it on a background thread.
-- **FilePicker accretion** — each folder-browse appends a new `FilePicker` to `page.overlay` and never removes
-  it. Fix: create one picker and reuse it.
-
-Low priority:
 - **Sub-file progress** — intra-file % while the model works (e.g. LM Studio prompt-eval). Not exposed by the
   OpenAI HTTP API docsort uses (only final `usage`); would need `stream:true` (little value — tiny generation)
   or tailing LM Studio's log (fragile, version-specific). Deferred.
+- **GUI visual verification** — the Flet GUI is validated by headless control-tree construction + unit tests;
+  a full visual/interaction smoke-test on each release is still a manual step.
 
-## Planned — later versions (post-v0.11.1)
+## Planned — later versions
 
 - **Background processing + system tray** — run minimized / keep working from the tray so a long batch
   doesn't tie up a window. (Out of scope for the v0.11.0 visual overhaul.)
