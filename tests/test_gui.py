@@ -83,3 +83,25 @@ def test_tags_view_renders_the_shared_toggle_objects():
     found = list(_walk(view))
     for key, switch in toggles.items():
         assert any(c is switch for c in found), f"toggle '{key}' not found in Tags view tree"
+
+
+def test_stats_view_embeds_folders_and_reports_sections():
+    page = _stub_page()
+    folder_getter = lambda: ""
+    view = gui._stats_view(page, folder_getter)
+    found = list(_walk(view))
+    texts = [c.value for c in found if isinstance(c, ft.Text) and c.value]
+    assert "Folders" in texts
+    assert "Reports" in texts
+    assert "Exclude" in texts   # from _folders_view
+    buttons = [c.content for c in found if isinstance(c, ft.FilledButton)]
+    assert "Load report" in buttons   # from _reports_view
+
+
+def test_build_produces_three_tab_nav_rail():
+    page = _stub_page()
+    gui._build(page)
+    assert page.added, "page.add was never called"
+    row = page.added[0][0]
+    rail = row.controls[0]
+    assert [d.label for d in rail.destinations] == ["Run", "Tags", "Stats"]

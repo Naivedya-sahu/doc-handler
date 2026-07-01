@@ -41,7 +41,7 @@ OK     = "#3ddc84"
 FAIL   = "#e0715e"
 
 # Nav section names (index matches NavigationRail selected_index)
-_SECTION_NAMES = ["Run", "Tags", "Folders", "Reports", "Stats"]
+_SECTION_NAMES = ["Run", "Tags", "Stats"]
 
 
 # ---------------------------------------------------------------------------
@@ -532,7 +532,7 @@ def _reports_view(page: "ft.Page", folder_getter) -> "ft.Control":
         spacing=12, expand=True)
 
 
-def _stats_view(page: "ft.Page") -> "ft.Control":
+def _stats_view(page: "ft.Page", folder_getter) -> "ft.Control":
     import json
     import collections
     idx = os.path.join(config.user_dir(), "index.jsonl")
@@ -550,8 +550,13 @@ def _stats_view(page: "ft.Page") -> "ft.Control":
         for k, c in agg.most_common(20):
             lines.controls.append(ft.Text(f"{k}  ×{c}", color=MUTED, size=13, font_family="Consolas"))
 
-    return ft.Column([ft.Text("Lifetime stats", color=MUTED, size=12), lines],
-                     spacing=12, expand=True)
+    return ft.Column(
+        [ft.Text("Lifetime stats", color=MUTED, size=12), lines,
+         ft.Divider(color=PANEL2),
+         ft.Text("Folders", color=MUTED, size=12), _folders_view(page),
+         ft.Divider(color=PANEL2),
+         ft.Text("Reports", color=MUTED, size=12), _reports_view(page, folder_getter)],
+        spacing=12, expand=True, scroll=ft.ScrollMode.AUTO)
 
 
 # ---------------------------------------------------------------------------
@@ -571,8 +576,12 @@ def _build(page: "ft.Page") -> None:
     page.window.min_width = 720
     page.window.min_height = 560
 
+    # Run-option switches, built once and shared between Run (reads .value)
+    # and Tags (renders them) so toggling in Tags affects the next Run.
+    toggles = _build_toggles()
+
     # Build the Run view once; other views are built lazily on first visit.
-    run_view = _run_view(page)
+    run_view = _run_view(page, toggles)
     content = ft.Container(expand=True, padding=18, content=run_view)
     cache: dict = {0: run_view}
 
@@ -582,13 +591,9 @@ def _build(page: "ft.Page") -> None:
 
     def _make_view(idx: int) -> "ft.Control":
         if idx == 1:
-            return _tags_view(page)
+            return _tags_view(page, toggles)
         if idx == 2:
-            return _folders_view(page)
-        if idx == 3:
-            return _reports_view(page, _folder_value)
-        if idx == 4:
-            return _stats_view(page)
+            return _stats_view(page, _folder_value)
         return run_view
 
     def _on_nav_change(e: "ft.ControlEvent") -> None:
@@ -607,8 +612,6 @@ def _build(page: "ft.Page") -> None:
         destinations=[
             ft.NavigationRailDestination(icon=ft.Icons.PLAY_ARROW, label="Run"),
             ft.NavigationRailDestination(icon=ft.Icons.LABEL, label="Tags"),
-            ft.NavigationRailDestination(icon=ft.Icons.FOLDER_OPEN, label="Folders"),
-            ft.NavigationRailDestination(icon=ft.Icons.DESCRIPTION, label="Reports"),
             ft.NavigationRailDestination(icon=ft.Icons.BAR_CHART, label="Stats"),
         ],
         on_change=_on_nav_change,
