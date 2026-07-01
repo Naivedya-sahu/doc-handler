@@ -477,6 +477,7 @@ def add_args(ap):
     ap.add_argument("--review",action="store_true",help="aggregate the run log into TAG-REVIEW.md (offline)")
     ap.add_argument("--report",action="store_true",help="(re)build DOCSORT-REPORT.md from the journal + update global index (offline)")
     ap.add_argument("--undo",action="store_true",help="reverse the renames/moves recorded in the journal")
+    ap.add_argument("--scan",action="store_true",help="build/refresh the ground-truth index for root, then exit (no classification)")
     ap.add_argument("--apply-journal",dest="apply_journal",action="store_true",
                     help="apply a prior dry-run's audited decisions from the journal (rename/move only, no model calls)")
     ap.add_argument("--stats",action="store_true",help="print lifetime stats from the global index, then exit")
@@ -512,6 +513,14 @@ def main(argv=None):
     a.root=root
     if a.report: report(a.root); return                      # offline
     if a.undo: undo(a.root); return                          # offline
+    if a.scan:
+        from docsort.index import open_index, scan_root
+        db_path=os.path.join(a.root,"_docsort_index.db")
+        conn=open_index(db_path)
+        count=scan_root(conn,a.root)
+        conn.close()
+        print(f"Indexed {count} entries into {db_path}")
+        return
     if a.apply_journal:                                      # offline: replay audited decisions, no model
         apply_journal(a.root, misc=bool(a.misc), skip_unknown=bool(a.skip_unknown)); return
     if a.review: setup(a); review(a.root,a.log); return     # offline; no model server needed

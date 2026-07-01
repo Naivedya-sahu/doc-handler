@@ -1,5 +1,7 @@
 import io
 import sqlite3
+import subprocess
+import sys
 import zipfile
 from docsort.index import (
     open_index, SCHEMA, hash_file, scan_directory, scan_zip, MAX_ARCHIVE_DEPTH, scan_root,
@@ -124,3 +126,14 @@ def test_scan_root_indexes_files_and_zips_together(tmp_path):
     assert any(p.endswith("archive.zip") for p in paths)
     assert any(p.endswith("archive.zip::in.txt") for p in paths)
     conn.close()
+
+
+def test_cli_scan_flag_reports_count(tmp_path):
+    (tmp_path / "a.txt").write_bytes(b"x")
+    (tmp_path / "b.txt").write_bytes(b"y")
+    result = subprocess.run(
+        [sys.executable, "-m", "docsort.cli", str(tmp_path), "--scan"],
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0
+    assert "indexed" in result.stdout.lower()
