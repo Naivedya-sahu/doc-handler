@@ -1,5 +1,7 @@
+import io
 import sqlite3
-from docsort.index import open_index, SCHEMA, hash_file, scan_directory
+import zipfile
+from docsort.index import open_index, SCHEMA, hash_file, scan_directory, scan_zip, MAX_ARCHIVE_DEPTH
 
 
 def test_open_index_creates_files_table(tmp_path):
@@ -36,4 +38,69 @@ def test_scan_directory_indexes_all_files(tmp_path):
     rows = conn.execute("SELECT path, size, archive_depth FROM files ORDER BY path").fetchall()
     assert len(rows) == 2
     assert all(r[2] == 0 for r in rows)  # archive_depth 0 for plain files
+    conn.close()
+
+
+def _make_zip(path, entries):
+    """entries: dict of {internal_name: bytes}"""
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, data in entries.items():
+            zf.writestr(name, data)
+
+
+def test_scan_zip_indexes_internal_files(tmp_path):
+    zpath = tmp_path / "outer.zip"
+    _make_zip(zpath, {"a.txt": b"one", "sub/b.txt": b"two"})
+
+    db_path = tmp_path / "index.db"
+    conn = open_index(str(db_path))
+    scan_zip(conn, str(zpath), str(zpath), depth=0, budget=10**9)
+
+    rows = conn.execute("SELECT path, archive_depth, source_archive FROM files ORDER BY path").fetchall()
+    assert len(rows) == 2
+    assert rows[0][0] == f"{zpath}::a.txt"
+    assert rows[0][1] == 0
+    assert rows[0][2] == str(zpath)
+    conn.close()
+
+
+def test_scan_zip_recurses_into_nested_zip(tmp_path):
+    inner_bytes = io.BytesIO()
+    with zipfile.ZipFile(inner_bytes, "w") as zf:
+        zf.writestr("deep.txt", b"deep content")
+
+    outer_path = tmp_path / "outer.zip"
+    _make_zip(outer_path, {"inner.zip": inner_bytes.getvalue()})
+
+    db_path = tmp_path / "index.db"
+    conn = open_index(str(db_path))
+    scan_zip(conn, str(outer_path), str(outer_path), depth=0, budget=10**9)
+
+    rows = conn.execute("SELECT path, archive_depth FROM files ORDER BY path").fetchall()
+    paths = [r[0] for r in rows]
+    assert f"{outer_path}::inner.zip::deep.txt" in paths
+    deep_row = [r for r in rows if r[0].endswith("deep.txt")][0]
+    assert deep_row[1] == 1
+    conn.close()
+
+
+def test_scan_zip_stops_at_max_depth(tmp_path):
+    payload = b"bottom"
+    for _ in range(MAX_ARCHIVE_DEPTH + 2):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("next.zip" if payload != b"bottom" else "bottom.txt", payload)
+        payload = buf.getvalue()
+
+    outer_path = tmp_path / "chain.zip"
+    outer_path.write_bytes(payload)
+
+    db_path = tmp_path / "index.db"
+    conn = open_index(str(db_path))
+    scan_zip(conn, str(outer_path), str(outer_path), depth=0, budget=10**9)
+
+    exceeded = conn.execute(
+        "SELECT path FROM files WHERE path LIKE '%DEPTH_EXCEEDED%'"
+    ).fetchall()
+    assert len(exceeded) >= 1
     conn.close()

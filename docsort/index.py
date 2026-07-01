@@ -1,6 +1,9 @@
 import hashlib
+import io
 import os
 import sqlite3
+import time
+import zipfile
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS files (
@@ -52,3 +55,44 @@ def scan_directory(conn, root):
                 continue
             _upsert(conn, full, size, filehash, mtime)
     conn.commit()
+
+
+MAX_ARCHIVE_DEPTH = 6
+
+
+def _hash_bytes(data):
+    h = hashlib.sha256()
+    h.update(data)
+    return h.hexdigest()
+
+
+def scan_zip(conn, zip_source, virtual_prefix, depth, budget):
+    """zip_source: a path (str) or a file-like object (io.BytesIO) opened as a zip."""
+    if depth > MAX_ARCHIVE_DEPTH:
+        _upsert(conn, f"{virtual_prefix}!!DEPTH_EXCEEDED", 0, None, time.time(),
+                archive_depth=depth, source_archive=str(zip_source))
+        conn.commit()
+        return budget
+
+    try:
+        with zipfile.ZipFile(zip_source) as zf:
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                if info.file_size > budget:
+                    _upsert(conn, f"{virtual_prefix}::{info.filename}!!BUDGET_EXCEEDED",
+                            info.file_size, None, time.time(),
+                            archive_depth=depth, source_archive=str(zip_source))
+                    continue
+                data = zf.read(info)
+                budget -= len(data)
+                vpath = f"{virtual_prefix}::{info.filename}"
+                filehash = _hash_bytes(data)
+                _upsert(conn, vpath, info.file_size, filehash, time.time(),
+                        archive_depth=depth, source_archive=str(zip_source))
+                if info.filename.lower().endswith(".zip"):
+                    budget = scan_zip(conn, io.BytesIO(data), vpath, depth + 1, budget)
+    except zipfile.BadZipFile:
+        pass
+    conn.commit()
+    return budget
