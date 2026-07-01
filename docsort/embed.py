@@ -28,3 +28,21 @@ def cosine_similarity(a, b):
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return dot / (norm_a * norm_b)
+
+
+def centroid(vectors):
+    if not vectors:
+        return tuple([0.0] * DIMS)
+    n = len(vectors)
+    dims = len(vectors[0])
+    return tuple(sum(v[i] for v in vectors) / n for i in range(dims))
+
+
+def classify_by_centroid(vector, centroids):
+    """Return (best_label, best_score) — nearest centroid by cosine similarity."""
+    best_label, best_score = None, -1.0
+    for label, c in centroids.items():
+        score = cosine_similarity(vector, c)
+        if score > best_score:
+            best_label, best_score = label, score
+    return best_label, best_score
