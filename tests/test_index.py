@@ -1,7 +1,9 @@
 import io
 import sqlite3
 import zipfile
-from docsort.index import open_index, SCHEMA, hash_file, scan_directory, scan_zip, MAX_ARCHIVE_DEPTH
+from docsort.index import (
+    open_index, SCHEMA, hash_file, scan_directory, scan_zip, MAX_ARCHIVE_DEPTH, scan_root,
+)
 
 
 def test_open_index_creates_files_table(tmp_path):
@@ -103,4 +105,22 @@ def test_scan_zip_stops_at_max_depth(tmp_path):
         "SELECT path FROM files WHERE path LIKE '%DEPTH_EXCEEDED%'"
     ).fetchall()
     assert len(exceeded) >= 1
+    conn.close()
+
+
+def test_scan_root_indexes_files_and_zips_together(tmp_path):
+    data_root = tmp_path / "data"  # separate from db_path — db must not self-index
+    data_root.mkdir()
+    (data_root / "a.txt").write_bytes(b"loose file")
+    _make_zip(data_root / "archive.zip", {"in.txt": b"in zip"})
+
+    db_path = tmp_path / "index.db"
+    conn = open_index(str(db_path))
+    count = scan_root(conn, str(data_root))
+
+    assert count == 3  # a.txt, archive.zip itself, archive.zip::in.txt
+    paths = [r[0] for r in conn.execute("SELECT path FROM files").fetchall()]
+    assert any(p.endswith("a.txt") for p in paths)
+    assert any(p.endswith("archive.zip") for p in paths)
+    assert any(p.endswith("archive.zip::in.txt") for p in paths)
     conn.close()

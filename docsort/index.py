@@ -96,3 +96,29 @@ def scan_zip(conn, zip_source, virtual_prefix, depth, budget):
         pass
     conn.commit()
     return budget
+
+
+MAX_ARCHIVE_EXTRACT_BYTES = 500 * 1024 * 1024  # 500MB per top-level archive
+
+
+def scan_root(conn, root):
+    """Walk root; index every plain file, and descend into every .zip found."""
+    count = 0
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for name in filenames:
+            full = os.path.join(dirpath, name)
+            try:
+                size = os.path.getsize(full)
+                mtime = os.path.getmtime(full)
+                filehash = hash_file(full)
+            except OSError:
+                continue
+            _upsert(conn, full, size, filehash, mtime)
+            count += 1
+            if name.lower().endswith(".zip"):
+                before = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+                scan_zip(conn, full, full, depth=0, budget=MAX_ARCHIVE_EXTRACT_BYTES)
+                after = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+                count += (after - before)
+    conn.commit()
+    return count
