@@ -20,7 +20,7 @@ try:
 except ImportError:          # CLI-only install — no flet wheel
     ft = None  # type: ignore[assignment]
 
-from . import config, tagsio
+from . import config, tagsio, __version__
 from .cli import available_models, load_tags
 from .runcore import RunController, build_run_cmd, cli_prefix
 
@@ -565,7 +565,7 @@ def _stats_view(page: "ft.Page", folder_getter) -> "ft.Control":
 
 def _build(page: "ft.Page") -> None:
     """Build the Flet UI tree and attach it to *page*."""
-    page.title = "docsort"
+    page.title = f"docsort v{__version__}"
     page.bgcolor = BG
     page.padding = 0
     page.theme_mode = ft.ThemeMode.DARK
