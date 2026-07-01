@@ -18,6 +18,8 @@ cd /d "%~dp0"
 
 set "PY=%~dp0.venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=python"
+set "PYW=%~dp0.venv\Scripts\pythonw.exe"
+if not exist "%PYW%" set "PYW=pythonw"
 
 if "%~1"=="" goto :gui
 if /i "%~1"=="gui" goto :gui
@@ -26,7 +28,12 @@ if /i "%~1"=="gui" goto :gui
 goto :end
 
 :gui
-"%PY%" -m docsort.gui
+REM pythonw (not python) so the GUI process itself doesn't stay console-attached.
+REM A .bat launched directly (e.g. a desktop shortcut) still flashes a console at
+REM the OS level before this runs -- that part can't be fixed from inside the
+REM script. Point the shortcut at dist\docsort-gui.exe instead for a fully
+REM console-free launch (build via build-exe.bat, or grab it from a GitHub Release).
+start "" "%PYW%" -m docsort.gui
 goto :end
 
 :end

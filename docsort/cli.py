@@ -22,9 +22,11 @@ import os, sys, json, csv, re, time, base64, argparse, subprocess, shutil, shlex
 try:                                   # works installed (package) and as `python -m docsort.cli`
     from .config import (load_config, resolve_api, resolve_location, arg_defaults,
                          tags_path, prompt_path, config_path, user_dir)
+    from . import __version__
 except ImportError:                    # fallback if run as a loose script
     from config import (load_config, resolve_api, resolve_location, arg_defaults,
                         tags_path, prompt_path, config_path, user_dir)
+    __version__ = "unknown"
 
 def unique_path(p):
     """Avoid overwriting: foo.pdf -> foo__1.pdf if taken."""
@@ -459,6 +461,7 @@ def setup(a):
     return build_system(a.prompt,s,su,ty)
 
 def add_args(ap):
+    ap.add_argument("--version",action="version",version=f"docsort {__version__}")
     ap.add_argument("root",nargs="?",default=None,help="folder to process (or use --location)")
     ap.add_argument("--config",default=None,help="path to config.json (else the per-user config)")
     ap.add_argument("--host",default=None,help="override model host: a name from config 'hosts' or a raw URL")
